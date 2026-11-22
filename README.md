@@ -1,6 +1,6 @@
-# Supermarket Froshgay
+# Qasabxana Butcher POS
 
-## Supermarket access setup
+## Access setup
 
 Configure `.env` to use the existing MySQL database `supermarket_froshgay_min`. Migrations update this database in place; do not rename, drop, or recreate it when deploying.
 
@@ -18,6 +18,10 @@ The built-in access levels are:
 - **ADMIN** — full access, including staff, settings, and activity logs.
 - **MANAGER** — operational access, without staff management, settings changes, or activity logs.
 - **CASHIER** — point-of-sale access and the read-only data required for checkout.
+
+## Smart label scale
+
+For the Rongta RLS1000/RLS1100 label printing scale, see [docs/SMART_SCALE.md](docs/SMART_SCALE.md). It covers Web Serial setup, manual fallback, PLU/barcode mapping, and weight-format troubleshooting.
 
 ## About Laravel
 

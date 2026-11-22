@@ -39,11 +39,15 @@ export interface Product {
   id: number;
   barcode: string;
   sku: string;
+  scale_product_code?: string;
   name_ku: string;
   category_id: number;
   unit_id: number;
+  is_weighted?: boolean;
   purchase_price: number;
   selling_price: number;
+  price_per_kg?: number;
+  tare_weight?: number;
   wholesale_price: number;
   quantity: number;
   min_stock: number;
@@ -120,6 +124,13 @@ export interface SaleItem {
   sale_id: number;
   product_id: number;
   quantity: number;
+  gross_weight?: number | null;
+  tare_weight?: number | null;
+  net_weight?: number | null;
+  weight_unit?: string | null;
+  scale_source?: string | null;
+  price_per_kg?: number | null;
+  is_weighted?: boolean;
   unit_price: number;
   purchase_cost: number;
   discount: number;
@@ -214,6 +225,12 @@ export interface AppSettings {
   expiry_alerts_expired: string;
   expiry_alerts_bell: string;
   expiry_alerts_dashboard: string;
+  scale_enabled?: string;
+  scale_mode?: string;
+  scale_port?: string;
+  scale_baud_rate?: string;
+  weight_decimals?: string;
+  receipt_width?: string;
 }
 
 export interface ExpiryAlert {

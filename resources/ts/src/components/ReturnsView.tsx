@@ -224,7 +224,7 @@ export function ReturnsView() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2"><RotateCcw className="size-5 text-teal-700" /><h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('returns')}</h1></div>
+      <div className="flex items-center gap-2"><RotateCcw className="size-5 text-rose-700" /><h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('returns')}</h1></div>
       <div className="space-y-3 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('fromDate')}<input type="date" max={toDate || undefined} value={fromDate} onChange={event => { setFromDate(event.target.value); setSale(null); setQuantities({}); setMatchingSales([]); }} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
@@ -233,8 +233,8 @@ export function ReturnsView() {
         <div>
           <p className="mb-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">{t('timeOfDay')}</p>
           <div className="flex flex-wrap gap-1.5">
-            <button type="button" disabled={!fromDate || !toDate} onClick={() => setTimePeriod('')} className={`rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${!timePeriod ? 'border-teal-700 bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300' : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>{t('allDay')}</button>
-            {TIME_PERIODS.map(period => <button key={period} type="button" disabled={!fromDate || !toDate} onClick={() => setTimePeriod(period)} className={`rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${timePeriod === period ? 'border-teal-700 bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300' : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>{t(`time_${period}`)}</button>)}
+            <button type="button" disabled={!fromDate || !toDate} onClick={() => setTimePeriod('')} className={`rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${!timePeriod ? 'border-rose-700 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300' : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>{t('allDay')}</button>
+            {TIME_PERIODS.map(period => <button key={period} type="button" disabled={!fromDate || !toDate} onClick={() => setTimePeriod(period)} className={`rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${timePeriod === period ? 'border-rose-700 bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300' : 'border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>{t(`time_${period}`)}</button>)}
           </div>
         </div>
         <div className="relative flex gap-2">

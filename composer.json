@@ -1,8 +1,8 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "supermarket/froshgay-management-system",
+    "name": "qasabxana/butcher-pos",
     "type": "project",
-    "description": "Supermarket Froshgay management system.",
+    "description": "Qasabxana butcher shop management and POS system.",
     "keywords": ["laravel", "framework"],
     "license": "MIT",
     "require": {

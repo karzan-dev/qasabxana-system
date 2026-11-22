@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Supermarket</title>
+    <title>Qasabxana | Butcher Shop POS</title>
 
-    <link rel="icon" href="/favicon.ico" sizes="any">
-    <link rel="icon" type="image/png" sizes="192x192" href="/images/icon-192.png">
-    <link rel="apple-touch-icon" href="/images/icon-192.png">
+    <link rel="icon" href="/images/butcher-icon.svg" type="image/svg+xml">
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/images/butcher-icon.svg">
+    <link rel="apple-touch-icon" href="/images/butcher-icon.svg">
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#0f766e">
+    <meta name="theme-color" content="#8b1e2d">
+    <meta name="description" content="Modern butcher shop POS with smart scale weighing, KG sales, barcode, invoices and IQD reporting.">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

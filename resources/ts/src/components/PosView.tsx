@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Barcode, DollarSign, Minus, Plus, Search, ShoppingCart, Trash2 } from 'lucide-react';
+import { Barcode, DollarSign, Minus, Plus, Scale, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
 import type { Customer, Product, Sale, SaleItem } from '../types';
 import { ReceiptModal } from './ReceiptModal';
 import { NumericInput } from './NumericInput';
 import { BarcodeScannerButton } from './BarcodeScannerButton';
+import { ScalePanel } from './ScalePanel';
 
-type CartLine = { product: Product; quantity: number };
+type WeightInfo = {
+  gross_weight?: number;
+  tare_weight?: number;
+  net_weight: number;
+  weight_unit: 'kg';
+  scale_source: 'manual' | 'web-serial';
+  price_per_kg: number;
+};
+
+type CartLine = { product: Product; quantity: number; weight?: WeightInfo };
 type CreditCustomerDetails = { name: string; phone: string; address: string };
 type SaleResult = { sale: Sale; items: Array<Partial<SaleItem> & Pick<SaleItem, 'product_id' | 'quantity' | 'unit_price' | 'total'>> };
 
@@ -68,13 +78,41 @@ const isKilogramProduct = (product: Product) => {
     || product.unit_ar?.includes('كيلو') === true;
 };
 
+const isWeightedProduct = (product: Product) => product.is_weighted === true || isKilogramProduct(product);
+
+const pricePerKgFor = (product: Product) => {
+  if (product.price_per_kg && product.price_per_kg > 0) return product.price_per_kg;
+  if (product.unit_code?.trim().toLowerCase() === 'g') return product.selling_price * 1000;
+  return product.selling_price;
+};
+
+const makeCartLine = (product: Product, quantity: number): CartLine => {
+  const netWeight = Math.round(quantity * 1000) / 1000;
+  if (!isWeightedProduct(product)) return { product, quantity };
+  return {
+    product,
+    quantity: netWeight,
+    weight: {
+      net_weight: netWeight,
+      weight_unit: 'kg',
+      scale_source: 'manual',
+      price_per_kg: pricePerKgFor(product),
+    },
+  };
+};
+
+const lineTotal = (line: CartLine) => line.weight
+  ? line.weight.net_weight * line.weight.price_per_kg
+  : line.quantity * line.product.selling_price;
+
 export function PosView() {
-  const { t, language, getLocalizedName, formatCurrency, showToast, triggerRefresh, refreshTrigger } = useApp();
+  const { t, language, getLocalizedName, formatCurrency, showToast, triggerRefresh, refreshTrigger, settings } = useApp();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [todayNetSales, setTodayNetSales] = useState<number | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [weightInputs, setWeightInputs] = useState<Record<number, string>>({});
+  const [scaleTargetId, setScaleTargetId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CREDIT'>('CASH');
@@ -104,7 +142,11 @@ export function PosView() {
         if (!Array.isArray(parsed) || !parsed.every(isStoredCartLine)) {
           throw new Error('Saved POS cart data is invalid.');
         }
-        setCart(parsed);
+        setCart(parsed.map(line => (
+          isWeightedProduct(line.product) && !line.weight
+            ? makeCartLine(line.product, line.quantity)
+            : line
+        )));
       }
     } catch (error) {
       showToast(error instanceof Error ? error.message : t('error'), 'error');
@@ -209,7 +251,10 @@ export function PosView() {
         setCustomers(customerResult.data);
         setCart(current => current.map(line => {
           const currentProduct = productResult.data.find(product => product.id === line.product.id);
-          return currentProduct ? { ...line, product: currentProduct } : line;
+          if (!currentProduct) return line;
+          return isWeightedProduct(currentProduct) && !line.weight
+            ? makeCartLine(currentProduct, line.quantity)
+            : { ...line, product: currentProduct };
         }));
       })
       .catch(error => showToast(error instanceof Error ? error.message : t('error'), 'error'));
@@ -228,7 +273,7 @@ export function PosView() {
     return () => { active = false; };
   }, [refreshTrigger, showToast, t]);
 
-  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.product.selling_price * line.quantity, 0), [cart]);
+  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + lineTotal(line), 0), [cart]);
   const discountAmount = Math.min(subtotal, Math.max(0, Number(discount) || 0));
   const total = Math.max(0, subtotal - discountAmount);
   const cashReceivedAmount = Number(cashReceived);
@@ -244,10 +289,43 @@ export function PosView() {
       if (existing) {
         const nextQuantity = Math.min(product.quantity, existing.quantity + quantityToAdd);
         if (nextQuantity === existing.quantity) return current;
-        return current.map(line => line.product.id === product.id ? { ...line, quantity: nextQuantity } : line);
+        return current.map(line => line.product.id === product.id
+          ? makeCartLine(product, nextQuantity)
+          : line);
       }
-      return [...current, { product, quantity: quantityToAdd }];
+      return [...current, makeCartLine(product, quantityToAdd)];
     });
+  };
+
+  const applyWeight = (productId: number, weightKg: number, source: WeightInfo['scale_source'], syncInput = true) => {
+    const netWeight = Math.round(weightKg * 1000) / 1000;
+    if (!Number.isFinite(netWeight) || netWeight <= 0) return;
+
+    saleIdempotencyKey.current = null;
+    setCart(current => current.map(line => {
+      if (line.product.id !== productId) return line;
+      const quantity = Math.min(netWeight, line.product.quantity);
+      return {
+        ...line,
+        quantity,
+        weight: {
+          net_weight: quantity,
+          weight_unit: 'kg',
+          scale_source: source,
+          price_per_kg: line.weight?.price_per_kg ?? pricePerKgFor(line.product),
+        },
+      };
+    }));
+    if (syncInput) setWeightInputs(current => ({ ...current, [productId]: String(netWeight) }));
+  };
+
+  const handleScaleWeight = (weightKg: number, source: string) => {
+    const target = scaleTargetId ?? cart.find(line => isWeightedProduct(line.product))?.product.id;
+    if (!target) {
+      showToast(t('selectWeightedItem'), 'warning');
+      return;
+    }
+    applyWeight(target, weightKg, source === 'web-serial' ? 'web-serial' : 'manual');
   };
 
   const findBarcode = async (barcodeInput = search) => {
@@ -267,7 +345,14 @@ export function PosView() {
     setCart(current => current.flatMap(line => {
       if (line.product.id !== productId) return [line];
       if (nextQuantity <= 0) return [];
-      return [{ ...line, quantity: Math.min(nextQuantity, line.product.quantity) }];
+      const quantity = Math.min(nextQuantity, line.product.quantity);
+      return [{
+        ...line,
+        quantity,
+        weight: line.weight
+          ? { ...line.weight, net_weight: quantity, scale_source: 'manual' }
+          : undefined,
+      }];
     }));
   };
 
@@ -279,7 +364,24 @@ export function PosView() {
       const result = await apiRequest<SaleResult>('/api/pos/complete-sale', {
         method: 'POST',
         body: jsonBody({
-          items: cart.map(line => ({ product_id: line.product.id, quantity: line.quantity, unit_price: line.product.selling_price })),
+          items: cart.map(line => {
+            const weighted = isWeightedProduct(line.product);
+            const netWeight = weighted ? (line.weight?.net_weight ?? line.quantity) : line.quantity;
+            const perKg = line.weight?.price_per_kg ?? pricePerKgFor(line.product);
+            return {
+              product_id: line.product.id,
+              quantity: netWeight,
+              unit_price: weighted ? perKg : line.product.selling_price,
+              ...(weighted ? {
+                gross_weight: line.weight?.gross_weight,
+                tare_weight: line.weight?.tare_weight,
+                net_weight: netWeight,
+                weight_unit: 'kg',
+                scale_source: line.weight?.scale_source ?? 'manual',
+                price_per_kg: perKg,
+              } : {}),
+            };
+          }),
           customer_id: paymentMethod === 'CREDIT' && creditCustomerId ? Number(creditCustomerId) : null,
           customer: paymentMethod === 'CREDIT' && !creditCustomerId ? customer : null,
           payment_method: paymentMethod,
@@ -292,6 +394,8 @@ export function PosView() {
       setReceipt(result.data);
       saleIdempotencyKey.current = null;
       setCart([]);
+      setWeightInputs({});
+      setScaleTargetId(null);
       setCashReceived('');
       setDiscount('');
       setNotes('');
@@ -332,17 +436,20 @@ export function PosView() {
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('pos')}</h1><p className="text-xs text-slate-500">{t('appTagline')}</p></div>
-        <div className="flex items-center gap-3 rounded-md border border-teal-200 bg-teal-50 px-4 py-2 dark:border-teal-900 dark:bg-teal-950/40">
-          <DollarSign className="size-5 text-teal-700 dark:text-teal-300" />
+        <div className="flex items-center gap-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 dark:border-rose-900 dark:bg-rose-950/40">
+          <DollarSign className="size-5 text-rose-700 dark:text-rose-300" />
           <div>
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('reportMetric_total_sales')} · {t('today')}</p>
-            <p className="text-sm font-bold text-teal-800 dark:text-teal-200">{todayNetSales === null ? t('loading') : formatCurrency(todayNetSales)}</p>
+            <p className="text-sm font-bold text-rose-800 dark:text-rose-200">{todayNetSales === null ? t('loading') : formatCurrency(todayNetSales)}</p>
           </div>
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-3">
-          <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter') void findBarcode(); }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-teal-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:grid-cols-[minmax(0,1fr)_32rem]">
+        <div className="space-y-3 xl:sticky xl:top-4 xl:self-start">
+          <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter') void findBarcode(); }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
+          {settings.scale_enabled === '1' && settings.scale_mode === 'web_serial' && (
+            <ScalePanel baudRate={Number(settings.scale_baud_rate) || 9600} onWeight={handleScaleWeight} />
+          )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">{paginatedProducts.map(product => {
             const cartQuantity = cart.find(line => line.product.id === product.id)?.quantity ?? 0;
             const remainingQuantity = Math.max(0, product.quantity - cartQuantity);
@@ -352,10 +459,10 @@ export function PosView() {
               name_ar: product.unit_ar ?? '',
             });
 
-            return <button key={product.id} type="button" onClick={() => addToCart(product)} disabled={remainingQuantity <= 0} aria-label={`${t('addItem')}: ${getLocalizedName(product)}`} className="flex min-h-32 flex-col overflow-hidden rounded-md border sm:min-h-44 border-slate-200 bg-white text-start hover:border-teal-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900">
+            return <button key={product.id} type="button" onClick={() => addToCart(product)} disabled={remainingQuantity <= 0} aria-label={`${t('addItem')}: ${getLocalizedName(product)}`} className="flex min-h-32 flex-col overflow-hidden rounded-md border sm:min-h-44 border-slate-200 bg-white text-start hover:border-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900">
               {product.image && <img src={product.image} alt="" loading="lazy" className="h-24 w-full bg-slate-100 object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}
-              <span className="line-clamp-2 px-3 pt-3 text-xs font-semibold text-slate-900 dark:text-white">{getLocalizedName(product)}</span>
-              <span className="mt-2 px-3 text-center text-xs font-bold text-teal-800 dark:text-teal-300">{formatCurrency(product.selling_price)}</span>
+              <span className="line-clamp-2 px-3 pt-3 text-sm font-semibold text-slate-900 dark:text-white">{getLocalizedName(product)}</span>
+              <span className="mt-2 px-3 text-center text-sm font-bold text-rose-800 dark:text-rose-300">{formatCurrency(isWeightedProduct(product) ? pricePerKgFor(product) : product.selling_price)}{isWeightedProduct(product) ? '/kg' : ''}</span>
               <span className="mt-auto w-full px-3 pb-3 pt-2 text-end text-[10px] text-slate-500">{remainingQuantity} {unitName}</span>
             </button>;
           })}</div>
@@ -367,19 +474,92 @@ export function PosView() {
               <button type="button" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={displayedPage === totalPages} className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold disabled:opacity-50 dark:border-slate-700">{t('nextPage')}</button>
             </div>}
           </div>}
-          {cart.length > 0 && <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ behavior: 'smooth' })} className="sticky bottom-2 z-20 flex w-full items-center justify-between gap-3 rounded-md bg-teal-700 px-4 py-3 text-sm font-bold text-white shadow-lg xl:hidden"><span className="flex items-center gap-2"><ShoppingCart className="size-4" />{t('cart')} ({cart.length})</span><span>{formatCurrency(total)}</span></button>}
+          {cart.length > 0 && <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ behavior: 'smooth' })} className="sticky bottom-2 z-20 flex w-full items-center justify-between gap-3 rounded-md bg-rose-700 px-4 py-3 text-sm font-bold text-white shadow-lg xl:hidden"><span className="flex items-center gap-2"><ShoppingCart className="size-4" />{t('cart')} ({cart.length})</span><span>{formatCurrency(total)}</span></button>}
         </div>
 
-        <aside id="pos-cart" className="flex min-h-[28rem] scroll-mt-4 flex-col rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center justify-between border-b border-slate-200 p-4 dark:border-slate-800"><h2 className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white"><ShoppingCart className="size-4" />{t('cart')}</h2><span className="text-xs text-slate-500">{cart.length} {t('items')}</span></div>
-          <div className="space-y-3 border-t border-slate-200 p-4 dark:border-slate-800">
-            <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1 text-[11px] dark:bg-slate-800">{(['CASH', 'CREDIT'] as const).map(method => <button key={method} onClick={() => { saleIdempotencyKey.current = null; setPaymentMethod(method); }} className={`rounded px-2 py-1.5 font-semibold ${paymentMethod === method ? 'bg-white text-teal-800 shadow-sm dark:bg-slate-950 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300'}`}>{t(method.toLowerCase())}</button>)}</div>
-            {paymentMethod === 'CASH' && <div><label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min={total} step="0.01" value={cashReceived} onValueChange={value => { saleIdempotencyKey.current = null; setCashReceived(value); }} placeholder="0" className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><div className="mt-1.5 flex items-center justify-between text-xs"><span className="text-slate-500">{t('changeAmount')}</span><span className="font-semibold text-emerald-700 dark:text-emerald-400">{formatCurrency(changeAmount)}</span></div></div>}
-            <div className="space-y-2 border-t border-slate-200 pt-3 text-xs dark:border-slate-800">
-              <div className="flex justify-between"><span className="text-slate-500">{t('subtotal')}</span><span>{formatCurrency(subtotal)}</span></div>
-              <label className="flex items-center justify-between gap-3 text-rose-600"><span>{t('discount')}</span><NumericInput min="0" max={subtotal} step="0.01" value={discount === '0' ? '' : discount} placeholder="0" onValueChange={value => { saleIdempotencyKey.current = null; setDiscount(value); }} className="w-28 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-center text-slate-900 sm:w-40 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
-              <div className="flex justify-between text-base font-bold text-slate-900 dark:text-white"><span>{t('total')}</span><span>{formatCurrency(total)}</span></div>
+        <aside id="pos-cart" className="flex min-h-[30rem] scroll-mt-4 flex-col rounded-xl border border-rose-100 bg-white shadow-lg shadow-slate-900/5 dark:border-rose-900/40 dark:bg-slate-900">
+          <div className="flex items-center justify-between border-b border-rose-100 bg-gradient-to-b from-rose-50/80 to-white px-5 py-4 dark:border-rose-900/40 dark:from-rose-950/25 dark:to-slate-900"><h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900 dark:text-white"><ShoppingCart className="size-5 text-rose-700 dark:text-rose-300" />{t('cart')}</h2><span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">{cart.length} {t('items')}</span></div>
+          <div className="space-y-4 border-b border-slate-200 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/30">
+            <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-slate-200/70 p-1.5 text-sm dark:bg-slate-800">{(['CASH', 'CREDIT'] as const).map(method => <button key={method} onClick={() => { saleIdempotencyKey.current = null; setPaymentMethod(method); }} className={`rounded-md px-3 py-2 font-bold transition ${paymentMethod === method ? 'bg-white text-rose-700 shadow-sm ring-1 ring-rose-200 dark:bg-slate-950 dark:text-rose-200 dark:ring-rose-900/50' : 'text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-slate-700/40'}`}>{t(method.toLowerCase())}</button>)}</div>
+            {paymentMethod === 'CASH' && <div><label className="block text-sm font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min={total} step="0.01" value={cashReceived} onValueChange={value => { saleIdempotencyKey.current = null; setCashReceived(value); }} placeholder="0" className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-rose-900/40" /></label><div className="mt-2 flex items-center justify-between text-sm"><span className="text-slate-500">{t('changeAmount')}</span><span className="font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(changeAmount)}</span></div></div>}
+            <div className="space-y-3 border-t border-slate-200 pt-4 text-sm dark:border-slate-800">
+              <div className="flex justify-between"><span className="text-slate-500">{t('subtotal')}</span><span className="font-semibold tabular-nums">{formatCurrency(subtotal)}</span></div>
+              <label className="flex items-center justify-between gap-3 text-rose-600"><span className="font-semibold">{t('discount')}</span><NumericInput min="0" max={subtotal} step="0.01" value={discount === '0' ? '' : discount} placeholder="0" onValueChange={value => { saleIdempotencyKey.current = null; setDiscount(value); }} className="w-28 rounded-lg border border-slate-300 bg-white px-3 py-2 text-center font-semibold text-slate-900 sm:w-40 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
+              <div className="flex items-center justify-between border-t border-rose-100 pt-3 text-lg font-extrabold text-slate-900 dark:border-rose-900/40 dark:text-white"><span>{t('total')}</span><span className="tabular-nums text-rose-700 dark:text-rose-300">{formatCurrency(total)}</span></div>
             </div>
+          </div>
+          <div className="min-h-48 space-y-2 bg-slate-50/60 p-3 dark:bg-slate-950/30">
+            {cart.length === 0 ? <p className="p-12 text-center text-sm text-slate-500">{t('noData')}</p> : cart.map(line => {
+              const weighted = isWeightedProduct(line.product);
+              const targetActive = scaleTargetId === line.product.id;
+              return (
+                <div key={line.product.id} className="flex items-center gap-3 rounded-lg border border-rose-100/80 bg-white p-4 shadow-sm transition hover:border-rose-200 hover:bg-rose-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/20">
+                  {line.product.image && <img src={line.product.image} alt="" loading="lazy" className="size-12 shrink-0 rounded-lg object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-bold text-slate-900 dark:text-white">{getLocalizedName(line.product)}</p>
+                    <p className="mt-0.5 text-sm font-medium text-slate-600 dark:text-slate-300">
+                      {weighted
+                        ? `${formatCurrency(line.weight?.price_per_kg ?? pricePerKgFor(line.product))}/kg × ${line.quantity} kg = ${formatCurrency(lineTotal(line))}`
+                        : `${formatCurrency(line.product.selling_price)} × ${line.quantity}`}
+                    </p>
+                    {line.weight && (
+                      <p className="mt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                        {t('scaleSource')}: {line.weight.scale_source === 'web-serial' ? t('useWebSerial') : t('manualWeight')}
+                        {line.weight.tare_weight !== undefined && ` · ${t('tareWeight')}: ${line.weight.tare_weight} kg`}
+                      </p>
+                    )}
+                  </div>
+                  {weighted ? (
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                        {t('weightKg')}
+                        <NumericInput
+                          inputMode="decimal"
+                          placeholder="0.000"
+                          value={weightInputs[line.product.id] ?? line.quantity}
+                          onValueChange={value => {
+                            setWeightInputs(current => ({ ...current, [line.product.id]: value }));
+                            const entered = Number(value);
+                            if (Number.isFinite(entered) && entered >= 0.001) applyWeight(line.product.id, entered, 'manual', false);
+                          }}
+                          onBlur={event => {
+                            const entered = Number(event.currentTarget.value.replace(/,/g, ''));
+                            if (Number.isFinite(entered) && entered >= 0.001) {
+                              applyWeight(line.product.id, entered, 'manual');
+                            } else {
+                              setWeightInputs(current => {
+                                const next = { ...current };
+                                delete next[line.product.id];
+                                return next;
+                              });
+                            }
+                          }}
+                          className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-2 text-center text-sm font-bold text-slate-900 shadow-sm focus:border-rose-500 focus:ring-2 focus:ring-rose-200 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:ring-rose-900/40"
+                        />
+                      </label>
+                      {settings.scale_enabled === '1' && (
+                        <button
+                          type="button"
+                          onClick={() => setScaleTargetId(line.product.id)}
+                          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition ${targetActive ? 'border-rose-700 bg-rose-700 text-white shadow-sm' : 'border-rose-200 bg-white text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:bg-slate-950 dark:text-rose-300 dark:hover:bg-rose-950/30'}`}
+                        >
+                          <Scale className="size-3" /> {t('useScaleWeight')}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-950">
+                      <button onClick={() => updateQuantity(line.product.id, line.quantity - 1)} aria-label={t('decrease')} className="grid size-9 place-items-center rounded-md bg-white text-rose-700 shadow-sm hover:bg-rose-50 dark:bg-slate-800 dark:text-rose-200"><Minus className="size-4" /></button>
+                      <span className="w-9 text-center text-sm font-extrabold tabular-nums text-slate-900 dark:text-white">{line.quantity}</span>
+                      <button onClick={() => updateQuantity(line.product.id, line.quantity + 1)} aria-label={t('increase')} className="grid size-9 place-items-center rounded-md bg-white text-rose-700 shadow-sm hover:bg-rose-50 dark:bg-slate-800 dark:text-rose-200"><Plus className="size-4" /></button>
+                    </div>
+                  )}
+                  <button onClick={() => { updateQuantity(line.product.id, 0); setScaleTargetId(current => current === line.product.id ? null : current); }} aria-label={t('delete')} className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-700 transition hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"><Trash2 className="size-4" /></button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="border-t border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/30">
             <button type="button" disabled={saving || cart.length === 0} onClick={() => {
               if (paymentMethod === 'CREDIT') {
                 setShowCreditSaleForm(true);
@@ -393,18 +573,24 @@ export function PosView() {
                 }
               }
               void completeSale();
-            }} className="w-full rounded-md bg-teal-700 px-4 py-3 text-sm font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50">{saving ? t('loading') : t('completeSale')}</button>
+            }} className="w-full rounded-lg bg-rose-700 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-rose-900/15 transition hover:bg-rose-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">{saving ? t('loading') : t('completeSale')}</button>
           </div>
-          <div className="min-h-32 flex-1 divide-y divide-slate-100 overflow-y-auto border-t border-slate-200 dark:divide-slate-800 dark:border-slate-800">{cart.length === 0 ? <p className="p-8 text-center text-xs text-slate-500">{t('noData')}</p> : cart.map(line => <div key={line.product.id} className="flex items-center gap-2 p-3">{line.product.image && <img src={line.product.image} alt="" loading="lazy" className="size-10 shrink-0 rounded object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}<div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-slate-900 dark:text-white">{getLocalizedName(line.product)}</p><p className="text-[11px] text-slate-500">{formatCurrency(line.product.selling_price)} × {line.quantity}</p></div>{isKilogramProduct(line.product) ? <label className="flex shrink-0 items-center gap-1 text-[10px] text-slate-500">{t('weightKg')}<NumericInput inputMode="decimal" placeholder="0.000" value={weightInputs[line.product.id] ?? line.quantity} onValueChange={value => { setWeightInputs(current => ({ ...current, [line.product.id]: value })); const enteredQuantity = Number(value); if (Number.isFinite(enteredQuantity) && enteredQuantity >= 0.01) updateQuantity(line.product.id, Math.min(enteredQuantity, line.product.quantity)); }} onBlur={event => { const enteredQuantity = Number(event.currentTarget.value.replace(/,/g, '')); if (Number.isFinite(enteredQuantity) && enteredQuantity >= 0.01) { const quantity = Math.min(enteredQuantity, line.product.quantity); updateQuantity(line.product.id, quantity); setWeightInputs(current => ({ ...current, [line.product.id]: String(quantity) })); } else { setWeightInputs(current => { const next = { ...current }; delete next[line.product.id]; return next; }); } }} className="w-20 rounded border border-slate-300 bg-white px-1.5 py-1 text-center text-xs text-slate-900 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label> : <div className="flex items-center gap-1"><button onClick={() => updateQuantity(line.product.id, line.quantity - 1)} aria-label={t('decrease')} className="rounded border border-slate-200 p-1 dark:border-slate-700"><Minus className="size-3" /></button><span className="w-7 text-center text-xs tabular-nums">{line.quantity}</span><button onClick={() => updateQuantity(line.product.id, line.quantity + 1)} aria-label={t('increase')} className="rounded border border-slate-200 p-1 dark:border-slate-700"><Plus className="size-3" /></button></div>}<button onClick={() => updateQuantity(line.product.id, 0)} aria-label={t('delete')} className="ms-1 rounded p-1 text-rose-600"><Trash2 className="size-4" /></button></div>)}</div>
         </aside>
       </div>
-      {showCreditSaleForm && <div className="fixed inset-0 z-50 overflow-y-auto flex items-center-safe justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="credit-sale-title"><form onSubmit={event => { event.preventDefault(); void completeSale(creditCustomer); }} className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 id="credit-sale-title" className="text-base font-bold text-slate-900 dark:text-white">{t('customer')}</h2><button type="button" onClick={() => setShowCreditSaleForm(false)} aria-label={t('close')} className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">×</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="relative text-xs font-semibold text-slate-600 dark:text-slate-300"><label>{t('name')}<input autoFocus required maxLength={100} autoComplete="off" value={creditCustomer.name} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, name: event.target.value })); }} placeholder={t('name')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>{!creditCustomerId && matchingCreditCustomers.length > 0 && <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">{matchingCreditCustomers.map(customer => <button key={customer.id} type="button" onClick={() => { saleIdempotencyKey.current = null; setCreditCustomerId(String(customer.id)); setCreditCustomer({ name: customer.name, phone: customer.phone || '', address: customer.address || '' }); }} className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-start last:border-0 hover:bg-teal-50 dark:border-slate-800 dark:hover:bg-slate-800"><span className="font-semibold">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</span><span className="text-[10px] text-rose-600 dark:text-rose-300">{t('debt')}: {formatCurrency(customer.debt)}</span></button>)}</div>}</div><label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('phone')}<input required={!creditCustomerId} maxLength={30} value={creditCustomer.phone} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, phone: event.target.value })); }} placeholder={t('phone')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">{t('address')}<input required={!creditCustomerId} value={creditCustomer.address} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, address: event.target.value })); }} placeholder={t('address')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label></div><div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><div className="flex justify-between font-semibold"><span>{t('total')}</span><span>{formatCurrency(total)}</span></div><label className="flex flex-col items-center gap-1 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min="0" max={total} step="0.01" value={creditAmountPaid} onValueChange={value => { saleIdempotencyKey.current = null; setCreditAmountPaid(value); }} placeholder="0" className="w-36 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-center text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><div className="flex justify-between text-xs text-rose-700 dark:text-rose-300"><span>{t('debt')}</span><span>{formatCurrency(Math.max(0, total - (Number(creditAmountPaid) || 0)))}</span></div></div><div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800"><button type="button" onClick={() => setShowCreditSaleForm(false)} className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">{t('cancel')}</button><button type="submit" disabled={saving} className="rounded-md bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('completeSale')}</button></div></form></div>}
+      {showCreditSaleForm && <div className="fixed inset-0 z-50 overflow-y-auto flex items-center-safe justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="credit-sale-title"><form onSubmit={event => { event.preventDefault(); void completeSale(creditCustomer); }} className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 id="credit-sale-title" className="text-base font-bold text-slate-900 dark:text-white">{t('customer')}</h2><button type="button" onClick={() => setShowCreditSaleForm(false)} aria-label={t('close')} className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">×</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="relative text-xs font-semibold text-slate-600 dark:text-slate-300"><label>{t('name')}<input autoFocus required maxLength={100} autoComplete="off" value={creditCustomer.name} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, name: event.target.value })); }} placeholder={t('name')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>{!creditCustomerId && matchingCreditCustomers.length > 0 && <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">{matchingCreditCustomers.map(customer => <button key={customer.id} type="button" onClick={() => { saleIdempotencyKey.current = null; setCreditCustomerId(String(customer.id)); setCreditCustomer({ name: customer.name, phone: customer.phone || '', address: customer.address || '' }); }} className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-start last:border-0 hover:bg-rose-50 dark:border-slate-800 dark:hover:bg-slate-800"><span className="font-semibold">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</span><span className="text-[10px] text-rose-600 dark:text-rose-300">{t('debt')}: {formatCurrency(customer.debt)}</span></button>)}</div>}</div><label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('phone')}<input required={!creditCustomerId} maxLength={30} value={creditCustomer.phone} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, phone: event.target.value })); }} placeholder={t('phone')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">{t('address')}<input required={!creditCustomerId} value={creditCustomer.address} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, address: event.target.value })); }} placeholder={t('address')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label></div><div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><div className="flex justify-between font-semibold"><span>{t('total')}</span><span>{formatCurrency(total)}</span></div><label className="flex flex-col items-center gap-1 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min="0" max={total} step="0.01" value={creditAmountPaid} onValueChange={value => { saleIdempotencyKey.current = null; setCreditAmountPaid(value); }} placeholder="0" className="w-36 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-center text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><div className="flex justify-between text-xs text-rose-700 dark:text-rose-300"><span>{t('debt')}</span><span>{formatCurrency(Math.max(0, total - (Number(creditAmountPaid) || 0)))}</span></div></div><div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800"><button type="button" onClick={() => setShowCreditSaleForm(false)} className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">{t('cancel')}</button><button type="submit" disabled={saving} className="rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('completeSale')}</button></div></form></div>}
       {receipt && <ReceiptModal sale={receipt.sale} items={receipt.items.map(item => ({
         id: item.id || 0, sale_id: receipt.sale.id, product_id: item.product_id, quantity: item.quantity,
         unit_price: item.unit_price, purchase_cost: item.purchase_cost || 0, discount: item.discount || 0,
         total: item.total, profit: item.profit || 0,
         ...(item.barcode !== undefined ? { barcode: item.barcode } : {}),
         ...(item.name_ku !== undefined ? { name_ku: item.name_ku } : {}),
+        ...(item.gross_weight !== undefined ? { gross_weight: item.gross_weight } : {}),
+        ...(item.tare_weight !== undefined ? { tare_weight: item.tare_weight } : {}),
+        ...(item.net_weight !== undefined ? { net_weight: item.net_weight } : {}),
+        ...(item.weight_unit !== undefined ? { weight_unit: item.weight_unit } : {}),
+        ...(item.scale_source !== undefined ? { scale_source: item.scale_source } : {}),
+        ...(item.price_per_kg !== undefined ? { price_per_kg: item.price_per_kg } : {}),
+        ...(item.is_weighted !== undefined ? { is_weighted: item.is_weighted } : {}),
       }))} onClose={() => setReceipt(null)} />}
     </section>
   );

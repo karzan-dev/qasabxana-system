@@ -20,7 +20,7 @@ export function BackupView() {
       const url = URL.createObjectURL(backup);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `supermarket-backup-${new Date().toISOString().slice(0, 10)}.sql`;
+      link.download = `qasabxana-butcher-backup-${new Date().toISOString().slice(0, 10)}.sql`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -36,7 +36,7 @@ export function BackupView() {
   return (
     <section className="space-y-5">
       <header className="flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
           <Database className="size-5" aria-hidden="true" />
         </span>
         <div>
@@ -55,7 +55,7 @@ export function BackupView() {
           type="button"
           onClick={() => void downloadBackup()}
           disabled={downloading}
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60"
+          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800 disabled:cursor-wait disabled:opacity-60"
         >
           {downloading ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
           {downloading ? t('loading') : t('createBackup')}

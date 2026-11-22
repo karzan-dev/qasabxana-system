@@ -46,7 +46,7 @@ class BackupController extends Controller
             $connection = DB::connection();
             $pdo = $connection->getPdo();
 
-            echo "-- Supermarket data backup\n";
+            echo "-- Butcher shop data backup\n";
             echo '-- Generated at '.now()->toIso8601String()."\n";
             echo "-- Import into an empty database after running the application's migrations.\n\n";
             echo "SET NAMES utf8mb4;\n";
@@ -87,7 +87,7 @@ class BackupController extends Controller
 
             echo "COMMIT;\n";
             echo "SET FOREIGN_KEY_CHECKS=1;\n";
-        }, 'supermarket-backup-'.now()->format('Y-m-d-His').'.sql', [
+        }, 'qasabxana-backup-'.now()->format('Y-m-d-His').'.sql', [
             'Content-Type' => 'application/sql; charset=UTF-8',
             'Cache-Control' => 'no-store',
         ]);

@@ -1,12 +1,12 @@
 {
-  "name": "Supermarket",
-  "short_name": "Supermarket",
+  "name": "Qasabxana - Butcher Shop POS",
+  "short_name": "Qasabxana",
+  "description": "Modern butcher shop point of sale with smart scale support.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#0f766e",
+  "background_color": "#faf7f2",
+  "theme_color": "#8b1e2d",
   "icons": [
-    { "src": "/images/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/images/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/images/butcher-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
   ]
 }

@@ -158,15 +158,15 @@ class DatabaseSeeder extends Seeder
 
         // 8. Seed Settings
         $settings = [
-            'store_name' => 'فرۆشگای من',
-            'store_name_en' => 'My Supermarket',
-            'store_name_ar' => 'متجري',
+            'store_name' => 'قەسابخانەی من',
+            'store_name_en' => 'My Butcher Shop',
+            'store_name_ar' => 'مجزري',
             'store_phone' => '+964 750 123 4567',
             'store_address' => 'هەولێر - شەقامی ٦٠ مەتری - بەرامبەر پارکی نیشتمان',
             'currency' => 'IQD',
             'tax_percentage' => '0',
             'invoice_prefix' => 'INV-',
-            'receipt_footer' => 'سوپاس بۆ سەردانەکەتان، کاڵای فرۆشراو تا ٢٤ کاتژمێر دەگۆڕدرێتەوە',
+            'receipt_footer' => 'سوپاس بۆ سەردانەکەتان — گۆشتی تازە و کوالیتی متمانەپێکراو',
             'default_language' => 'ku',
             'allow_negative_stock' => '0',
             'low_stock_threshold' => '5',

@@ -129,7 +129,7 @@ return [
 
     'cookie' => env(
         'SESSION_COOKIE',
-        Str::slug((string) env('APP_NAME', 'Supermarket Froshgay')).'-session'
+        Str::slug((string) env('APP_NAME', 'Qasabxana Butcher POS')).'-session'
     ),
 
     /*

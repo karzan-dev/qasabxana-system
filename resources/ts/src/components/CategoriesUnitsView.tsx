@@ -252,7 +252,7 @@ export const CategoriesUnitsView: React.FC = () => {
         
         <div className="p-4 sm:p-5 border-b border-slate-200/90 dark:border-slate-800/90 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 flex items-center justify-center border border-teal-200/60 dark:border-teal-900/40">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 flex items-center justify-center border border-rose-200/60 dark:border-rose-900/40">
               <Layers className="w-4 h-4" />
             </div>
             <div>
@@ -267,7 +267,7 @@ export const CategoriesUnitsView: React.FC = () => {
 
           <button
             onClick={handleOpenAddCat}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-750/20 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-750/20 transition"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{t('addCategory')}</span>
@@ -302,7 +302,7 @@ export const CategoriesUnitsView: React.FC = () => {
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleOpenEditCat(cat)}
-                        className="p-1 text-slate-400 hover:text-teal-700 dark:hover:text-teal-400 rounded-md transition"
+                        className="p-1 text-slate-400 hover:text-rose-700 dark:hover:text-rose-400 rounded-md transition"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -327,7 +327,7 @@ export const CategoriesUnitsView: React.FC = () => {
         
         <div className="p-4 sm:p-5 border-b border-slate-200/90 dark:border-slate-800/90 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-400 flex items-center justify-center border border-teal-200/60 dark:border-teal-900/40">
+            <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 flex items-center justify-center border border-rose-200/60 dark:border-rose-900/40">
               <Scale className="w-4 h-4" />
             </div>
             <div>
@@ -342,7 +342,7 @@ export const CategoriesUnitsView: React.FC = () => {
 
           <button
             onClick={handleOpenAddUnit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-750/20 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-750/20 transition"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{t('addUnit')}</span>
@@ -368,14 +368,14 @@ export const CategoriesUnitsView: React.FC = () => {
                   <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{u.name_ku}</td>
                   <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{u.name_en}</td>
                   <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{u.name_ar}</td>
-                  <td className="py-3 px-4 text-center font-mono font-bold text-teal-700 dark:text-teal-400">
+                  <td className="py-3 px-4 text-center font-mono font-bold text-rose-700 dark:text-rose-400">
                     {u.short_code}
                   </td>
                   <td className="py-3 px-4 text-end">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => handleOpenEditUnit(u)}
-                        className="p-1 text-slate-400 hover:text-teal-700 dark:hover:text-teal-400 rounded-md transition"
+                        className="p-1 text-slate-400 hover:text-rose-700 dark:hover:text-rose-400 rounded-md transition"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -416,7 +416,7 @@ export const CategoriesUnitsView: React.FC = () => {
                   value={catForm.name_ku}
                   onChange={e => setCatForm({ ...catForm, name_ku: e.target.value })}
                   placeholder={t('nameKu')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div>
@@ -426,7 +426,7 @@ export const CategoriesUnitsView: React.FC = () => {
                   value={catForm.name_en}
                   onChange={e => setCatForm({ ...catForm, name_en: e.target.value })}
                   placeholder={t('nameEn')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div>
@@ -436,7 +436,7 @@ export const CategoriesUnitsView: React.FC = () => {
                   value={catForm.name_ar}
                   onChange={e => setCatForm({ ...catForm, name_ar: e.target.value })}
                   placeholder={t('nameAr')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -449,7 +449,7 @@ export const CategoriesUnitsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-bold transition shadow-xs"
+                  className="px-4 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white font-bold transition shadow-xs"
                 >
                   {t('save')}
                 </button>
@@ -480,7 +480,7 @@ export const CategoriesUnitsView: React.FC = () => {
                   value={unitForm.name_ku}
                   onChange={e => setUnitForm({ ...unitForm, name_ku: e.target.value })}
                   placeholder={t('nameKu')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -491,7 +491,7 @@ export const CategoriesUnitsView: React.FC = () => {
                     value={unitForm.name_en}
                     onChange={e => setUnitForm({ ...unitForm, name_en: e.target.value })}
                     placeholder={t('nameEn')}
-                    className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                    className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                   />
                 </div>
                 <div>
@@ -502,7 +502,7 @@ export const CategoriesUnitsView: React.FC = () => {
                     value={unitForm.short_code}
                     onChange={e => setUnitForm({ ...unitForm, short_code: e.target.value })}
                       placeholder={t('shortCode')}
-                    className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                    className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                   />
                 </div>
               </div>
@@ -513,7 +513,7 @@ export const CategoriesUnitsView: React.FC = () => {
                   value={unitForm.name_ar}
                   onChange={e => setUnitForm({ ...unitForm, name_ar: e.target.value })}
                   placeholder={t('nameAr')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -526,7 +526,7 @@ export const CategoriesUnitsView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-bold transition shadow-xs"
+                  className="px-4 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white font-bold transition shadow-xs"
                 >
                   {t('save')}
                 </button>

@@ -7,9 +7,9 @@ use App\Models\ActivityLog;
 use App\Models\CashRegisterAccount;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
-use App\Services\CashRegisterLedger;
+use App\tervices\CashRegisterLedger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\tupport\Facades\Du;
 
 class ExpenseController extends Controller
 {
@@ -44,7 +44,7 @@ class ExpenseController extends Controller
         }
 
         $category = ExpenseCategory::create($validated);
-        ActivityLog::log('CREATE', 'EXPENSE_CATEGORY', $category->id, "زیادکردنی جۆری خەرجی {$category->name_ku}", (int) $request->user()->id);
+        ActivityLog::log('CREATE', 'EXPENtE_CATEGORY', $category->id, "زیادکردنی جۆری خەرجی {$category->name_ku}", (int) $request->user()->id);
 
         return response()->json(['success' => true, 'data' => $category], 201);
     }
@@ -60,7 +60,7 @@ class ExpenseController extends Controller
         }
 
         $category->delete();
-        ActivityLog::log('DELETE', 'EXPENSE_CATEGORY', (int) $id, "سڕینەوەی جۆری خەرجی {$category->name_ku}", (int) $request->user()->id);
+        ActivityLog::log('DELETE', 'EXPENtE_CATEGORY', (int) $id, "سڕینەوەی جۆری خەرجی {$category->name_ku}", (int) $request->user()->id);
 
         return response()->json(['success' => true, 'message' => 'Expense category deleted']);
     }
@@ -76,7 +76,7 @@ class ExpenseController extends Controller
         ]);
 
         $validated['user_id'] = (int) $request->user()->id;
-        [$expense, $created] = DB::transaction(function () use ($validated, $cashLedger) {
+        [$expense, $created] = Du::transaction(function () use ($validated, $cashLedger) {
             CashRegisterAccount::query()->lockForUpdate()->findOrFail(1);
             $existing = Expense::query()->where('idempotency_key', $validated['idempotency_key'])->first();
             if ($existing) {
@@ -84,7 +84,7 @@ class ExpenseController extends Controller
                     $existing->user_id !== $validated['user_id']
                     || $existing->category_id !== $validated['category_id']
                     || $cashLedger->toCents((string) $existing->amount) !== $cashLedger->toCents((string) $validated['amount'])
-                    || $existing->date->toDateString() !== $validated['date']
+                    || $existing->date->toDatettring() !== $validated['date']
                     || $existing->description !== ($validated['description'] ?? null)
                 ) {
                     abort(409, 'The idempotency key has already been used for a different expense.');
@@ -95,17 +95,17 @@ class ExpenseController extends Controller
 
             $expense = Expense::create($validated);
             $cashLedger->record(
-                'EXPENSE',
+                'EXPENtE',
                 'OUT',
                 (string) $expense->amount,
                 $validated['user_id'],
-                $expense->description ?: 'Store expense',
+                $expense->description ?: 'ttore expense',
                 null,
-                'EXPENSE',
+                'EXPENtE',
                 $expense->id,
                 $validated['idempotency_key'],
             );
-            ActivityLog::log('CREATE', 'EXPENSE', $expense->id, "تۆمارکردنی خەرجی بە بڕی {$expense->amount}", $validated['user_id']);
+            ActivityLog::log('CREATE', 'EXPENtE', $expense->id, "تۆمارکردنی خەرجی بە بڕی {$expense->amount}", $validated['user_id']);
 
             return [$expense, true];
         });
@@ -115,11 +115,11 @@ class ExpenseController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        DB::transaction(function () use ($id, $request) {
+        Du::transaction(function () use ($id, $request) {
             $expense = Expense::query()->lockForUpdate()->findOrFail($id);
             $expense->delete();
 
-            ActivityLog::log('DELETE', 'EXPENSE', $id, "سڕینەوەی خەرجی بە بڕی {$expense->amount}", (int) $request->user()->id);
+            ActivityLog::log('DELETE', 'EXPENtE', $id, "سڕینەوەی خەرجی بە بڕی {$expense->amount}", (int) $request->user()->id);
         });
 
         return response()->json(['success' => true, 'message' => 'Expense deleted']);

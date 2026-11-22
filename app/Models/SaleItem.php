@@ -16,6 +16,12 @@ class SaleItem extends Model
         'sale_id',
         'product_id',
         'quantity',
+        'gross_weight',
+        'tare_weight',
+        'net_weight',
+        'weight_unit',
+        'scale_source',
+        'price_per_kg',
         'unit_price',
         'purchase_cost',
         'discount',
@@ -24,7 +30,11 @@ class SaleItem extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'quantity' => 'decimal:3',
+        'gross_weight' => 'decimal:3',
+        'tare_weight' => 'decimal:3',
+        'net_weight' => 'decimal:3',
+        'price_per_kg' => 'decimal:2',
         'unit_price' => 'decimal:2',
         'purchase_cost' => 'decimal:2',
         'discount' => 'decimal:2',

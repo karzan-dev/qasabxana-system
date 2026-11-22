@@ -13,12 +13,16 @@ class Product extends Model
 
     protected $fillable = [
         'barcode',
+        'scale_product_code',
         'sku',
         'name_ku',
         'category_id',
         'unit_id',
+        'is_weighted',
         'purchase_price',
         'selling_price',
+        'price_per_kg',
+        'tare_weight',
         'wholesale_price',
         'quantity',
         'min_stock',
@@ -29,11 +33,14 @@ class Product extends Model
     ];
 
     protected $casts = [
+        'is_weighted' => 'boolean',
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
+        'price_per_kg' => 'decimal:2',
+        'tare_weight' => 'decimal:3',
         'wholesale_price' => 'decimal:2',
-        'quantity' => 'decimal:2',
-        'min_stock' => 'decimal:2',
+        'quantity' => 'decimal:3',
+        'min_stock' => 'decimal:3',
         'expiry_date' => 'date',
     ];
 

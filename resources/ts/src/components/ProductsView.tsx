@@ -12,8 +12,12 @@ type ProductForm = {
   name_ku: string;
   category_id: string;
   unit_id: string;
+  is_weighted: string;
   purchase_price: string;
   selling_price: string;
+  price_per_kg: string;
+  tare_weight: string;
+  scale_product_code: string;
   wholesale_price: string;
   quantity: string;
   min_stock: string;
@@ -32,8 +36,12 @@ const EMPTY_FORM: ProductForm = {
   name_ku: '',
   category_id: '',
   unit_id: '',
+  is_weighted: '0',
   purchase_price: '',
   selling_price: '',
+  price_per_kg: '',
+  tare_weight: '0',
+  scale_product_code: '',
   wholesale_price: '',
   quantity: '0',
   min_stock: '0',
@@ -344,8 +352,12 @@ export function ProductsView() {
       name_ku: product.name_ku,
       category_id: String(product.category_id),
       unit_id: String(product.unit_id),
+      is_weighted: product.is_weighted ? '1' : '0',
       purchase_price: String(product.purchase_price),
       selling_price: String(product.selling_price),
+      price_per_kg: String(product.price_per_kg ?? product.selling_price),
+      tare_weight: String(product.tare_weight ?? 0),
+      scale_product_code: product.scale_product_code ?? '',
       wholesale_price: String(product.wholesale_price),
       quantity: String(product.quantity),
       min_stock: String(product.min_stock),
@@ -498,8 +510,12 @@ export function ProductsView() {
         ...productForm,
         category_id: Number(productForm.category_id),
         unit_id: Number(productForm.unit_id),
+        is_weighted: productForm.is_weighted === '1',
         purchase_price: Number(productForm.purchase_price),
         selling_price: Number(productForm.selling_price),
+        price_per_kg: Number(productForm.price_per_kg || productForm.selling_price || 0),
+        tare_weight: Number(productForm.tare_weight || 0),
+        scale_product_code: productForm.scale_product_code || '',
         wholesale_price: Number(productForm.wholesale_price || 0),
         quantity: Number(productForm.quantity || 0),
         min_stock: Number(productForm.min_stock || 0),
@@ -786,7 +802,7 @@ export function ProductsView() {
             setForm(current => current ? { ...current, [key]: value } : current)
           }
           placeholder={placeholder}
-          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-teal-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-rose-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
         />
       ) : (
         <input
@@ -799,7 +815,7 @@ export function ProductsView() {
             )
           }
           placeholder={placeholder}
-          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-teal-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+          className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-rose-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
         />
       )}
     </label>
@@ -812,7 +828,7 @@ export function ProductsView() {
       {/* Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2">
-          <Package className="size-5 text-teal-700" />
+          <Package className="size-5 text-rose-700" />
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">
             {t('products')}
           </h1>
@@ -876,7 +892,7 @@ export function ProductsView() {
           {/* Add product */}
           <button
             onClick={openCreate}
-            className="flex shrink-0 items-center gap-2 rounded-md bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800"
+            className="flex shrink-0 items-center gap-2 rounded-md bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-800"
           >
             <Plus className="size-4" />
             <span>{t('addProduct')}</span>
@@ -954,7 +970,7 @@ export function ProductsView() {
                           onClick={() => printBarcode(product)}
                           title={t('printBarcode')}
                           aria-label={t('printBarcode')}
-                          className="rounded p-1.5 text-teal-700 hover:bg-teal-50 dark:text-teal-300 dark:hover:bg-slate-700"
+                          className="rounded p-1.5 text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-slate-700"
                         >
                           <Printer className="size-4" />
                         </button>
@@ -1047,14 +1063,14 @@ export function ProductsView() {
                     placeholder={t('barcode')}
                     aria-invalid={barcodeAlreadyUsed}
                     aria-describedby={barcodeAlreadyUsed ? 'barcode-duplicate-error' : undefined}
-                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-teal-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-rose-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   />
                   <button
                     type="button"
                     onClick={generateBarcode}
                     title={t('generateBarcode')}
                     aria-label={t('generateBarcode')}
-                    className="grid size-9 shrink-0 place-items-center rounded-md border border-slate-300 text-teal-700 hover:bg-teal-50 dark:border-slate-700 dark:text-teal-300 dark:hover:bg-slate-800"
+                    className="grid size-9 shrink-0 place-items-center rounded-md border border-slate-300 text-rose-700 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-300 dark:hover:bg-slate-800"
                   >
                     <RefreshCw className="size-4" />
                   </button>
@@ -1063,7 +1079,7 @@ export function ProductsView() {
                     onClick={() => void startBarcodeScanner()}
                     title={t('scanBarcode')}
                     aria-label={t('scanBarcode')}
-                    className="grid size-9 shrink-0 place-items-center rounded-md border border-slate-300 text-teal-700 hover:bg-teal-50 dark:border-slate-700 dark:text-teal-300 dark:hover:bg-slate-800"
+                    className="grid size-9 shrink-0 place-items-center rounded-md border border-slate-300 text-rose-700 hover:bg-rose-50 dark:border-slate-700 dark:text-rose-300 dark:hover:bg-slate-800"
                   >
                     <Camera className="size-4" />
                   </button>
@@ -1120,6 +1136,62 @@ export function ProductsView() {
                 </select>
               </label>
 
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {t('weightedProduct')}
+                <select
+                  value={form.is_weighted}
+                  onChange={(event) =>
+                    setForm((current) =>
+                      current ? { ...current, is_weighted: event.target.value } : current,
+                    )
+                  }
+                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                >
+                  <option value="0">{t('no')}</option>
+                  <option value="1">{t('yes')}</option>
+                </select>
+              </label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {t('pricePerKg')}
+                <NumericInput
+                  min="0"
+                  step="0.01"
+                  value={form.price_per_kg}
+                  onValueChange={(value) =>
+                    setForm((current) => (current ? { ...current, price_per_kg: value } : current))
+                  }
+                  placeholder={t('pricePerKg')}
+                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {t('tareWeight')} (kg)
+                <NumericInput
+                  min="0"
+                  step="0.001"
+                  value={form.tare_weight}
+                  onValueChange={(value) =>
+                    setForm((current) => (current ? { ...current, tare_weight: value } : current))
+                  }
+                  placeholder="0.000"
+                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                />
+              </label>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {t('scaleProductCode')}
+                <input
+                  type="text"
+                  value={form.scale_product_code}
+                  onChange={(event) =>
+                    setForm((current) =>
+                      current ? { ...current, scale_product_code: event.target.value } : current,
+                    )
+                  }
+                  placeholder="PLU-001"
+                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                />
+              </label>
+
               {field('purchase_price', t('purchasePrice'), 'number', true, t('purchasePrice'))}
               {field('selling_price', t('sellingPrice'), 'number', true, t('sellingPrice'))}
               {field('wholesale_price', t('wholesalePrice'), 'number', false, t('wholesalePrice'))}
@@ -1145,7 +1217,7 @@ export function ProductsView() {
                     value={form.quantity}
                     onValueChange={value => setForm(current => current ? { ...current, quantity: value } : current)}
                     placeholder={t('quantity')}
-                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-normal text-slate-900 outline-none focus:border-teal-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-center text-sm font-normal text-slate-900 outline-none focus:border-rose-700 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                   />
                   <button
                     type="button"
@@ -1234,7 +1306,7 @@ export function ProductsView() {
               <button
                 disabled={saving}
                 type="submit"
-                className="rounded-md bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+                className="rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
               >
                 {saving ? t('loading') : t('save')}
               </button>
@@ -1253,7 +1325,7 @@ export function ProductsView() {
           <div className="w-full max-w-lg rounded-md bg-white p-4 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                <Barcode className="size-5 text-teal-700" />
+                <Barcode className="size-5 text-rose-700" />
                 {t('scanBarcode')}
               </h2>
               <button

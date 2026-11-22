@@ -112,6 +112,6 @@ return [
     |
     */
 
-    'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'Supermarket Froshgay')).'-cache-'),
+    'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'Qasabxana Butcher POS')).'-cache-'),
 
 ];

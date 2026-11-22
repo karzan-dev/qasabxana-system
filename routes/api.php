@@ -27,7 +27,7 @@ Route::get('/health', function () {
         'status' => 'ok',
         'framework' => 'Laravel 12 (PHP 8.3+)',
         'database' => 'MySQL 8.0 (InnoDB utf8mb4)',
-        'system' => 'فرۆشگای من - Supermarket Management System',
+        'system' => 'قەسابخانەی من - Qasabxana Butcher POS',
         'timestamp' => now()->toIso8601String(),
     ]);
 });

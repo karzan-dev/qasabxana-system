@@ -124,7 +124,7 @@ export function BarcodeScannerButton({ onDetected, className }: BarcodeScannerBu
           <div className="w-full max-w-lg rounded-md bg-white p-4 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-2 font-bold text-slate-900 dark:text-white">
-                <Barcode className="size-5 text-teal-700" />
+                <Barcode className="size-5 text-rose-700" />
                 {t('scanBarcode')}
               </h2>
               <button type="button" onClick={() => setStream(null)} aria-label={t('cancel')}>

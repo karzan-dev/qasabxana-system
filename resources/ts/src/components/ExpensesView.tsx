@@ -233,7 +233,7 @@ export const ExpensesView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/90 dark:border-slate-800/90 shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-teal-700 dark:text-teal-400" />
+            <Receipt className="w-5 h-5 text-rose-700 dark:text-rose-400" />
             <span>{t('expenses')}</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold font-mono">
               {expenses.length}
@@ -246,7 +246,7 @@ export const ExpensesView: React.FC = () => {
 
         <button
           onClick={handleOpenAdd}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white text-xs font-bold shadow-md shadow-teal-750/20 transition"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white text-xs font-bold shadow-md shadow-rose-750/20 transition"
         >
           <Plus className="w-4 h-4" />
           <span>{t('addExpense')}</span>
@@ -331,7 +331,7 @@ export const ExpensesView: React.FC = () => {
                   <select
                     value={categoryId}
                     onChange={e => { setCategoryId(Number(e.target.value)); idempotencyKey.current = null; }}
-                    className="min-w-0 flex-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                    className="min-w-0 flex-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                   >
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>{getLocalizedName(c)}</option>
@@ -342,7 +342,7 @@ export const ExpensesView: React.FC = () => {
                     onClick={() => setNewCategoryName(name => name ?? '')}
                     title={catText.add}
                     aria-label={catText.add}
-                    className="grid size-9 shrink-0 place-items-center rounded-xl bg-teal-700 text-white hover:bg-teal-800"
+                    className="grid size-9 shrink-0 place-items-center rounded-xl bg-rose-700 text-white hover:bg-rose-800"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -359,7 +359,7 @@ export const ExpensesView: React.FC = () => {
                   )}
                 </div>
                 {newCategoryName !== null && (
-                  <div className="mt-2 flex gap-2 rounded-xl border border-teal-200 bg-teal-50/60 p-2 dark:border-teal-900 dark:bg-teal-950/30">
+                  <div className="mt-2 flex gap-2 rounded-xl border border-rose-200 bg-rose-50/60 p-2 dark:border-rose-900 dark:bg-rose-950/30">
                     <input
                       autoFocus
                       value={newCategoryName}
@@ -369,7 +369,7 @@ export const ExpensesView: React.FC = () => {
                       placeholder={catText.placeholder}
                       className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                     />
-                    <button type="button" disabled={savingCategory} onClick={() => void addCategory()} className="rounded-lg bg-teal-700 px-3 font-bold text-white disabled:opacity-50">
+                    <button type="button" disabled={savingCategory} onClick={() => void addCategory()} className="rounded-lg bg-rose-700 px-3 font-bold text-white disabled:opacity-50">
                       {savingCategory ? t('loading') : catText.save}
                     </button>
                     <button type="button" onClick={() => setNewCategoryName(null)} aria-label={t('cancel')} className="px-1 text-slate-400 hover:text-slate-600">
@@ -386,7 +386,7 @@ export const ExpensesView: React.FC = () => {
                   value={amount || ''}
                   onValueChange={value => { setAmount(Number(value) || 0); idempotencyKey.current = null; }}
                   placeholder="0"
-                  className="w-full p-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 text-sm rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div>
@@ -397,7 +397,7 @@ export const ExpensesView: React.FC = () => {
                   value={date || ''}
                   onChange={e => { setDate(e.target.value); idempotencyKey.current = null; }}
                   placeholder={t('date')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div>
@@ -407,7 +407,7 @@ export const ExpensesView: React.FC = () => {
                   value={description}
                   onChange={e => { setDescription(e.target.value); idempotencyKey.current = null; }}
                   placeholder={t('expenseNotePlaceholder')}
-                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600"
+                  className="w-full p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-600"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
@@ -421,7 +421,7 @@ export const ExpensesView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-teal-700 hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-bold transition shadow-xs disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 text-white font-bold transition shadow-xs disabled:opacity-50"
                 >
                   {saving ? t('loading') : t('save')}
                 </button>

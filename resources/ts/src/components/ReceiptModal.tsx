@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Printer, X, FileText, CheckCircle2 } from 'lucide-react';
 import type { Sale, SaleItem } from '../types';
@@ -11,7 +11,17 @@ interface ReceiptModalProps {
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose }) => {
   const { t, formatCurrency, getLocalizedName, settings, isRtl, language } = useApp();
-  const [receiptFormat, setReceiptFormat] = useState<'80mm' | '58mm' | 'a4'>('80mm');
+  const [receiptFormat, setReceiptFormat] = useState<'80mm' | '58mm' | 'a4'>(() => {
+    const configured = settings.receipt_width;
+    return configured === '58mm' || configured === 'a4' ? configured : '80mm';
+  });
+
+  useEffect(() => {
+    const configured = settings.receipt_width;
+    if (configured === '58mm' || configured === '80mm' || configured === 'a4') {
+      setReceiptFormat(configured);
+    }
+  }, [settings.receipt_width]);
 
   if (!sale) return null;
 
@@ -30,14 +40,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
     : settings.store_name;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center-safe justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="receipt-print-modal fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center-safe justify-center p-4">
+      <div className="receipt-print-sheet bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95">
         
         {/* Modal Top Bar (Hidden in print) */}
         {/* Phones: title + close on the first row, format/print controls wrap below so close never leaves the screen */}
         <div className="no-print p-3 sm:p-4 bg-slate-50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-rose-600" />
             <h3 className="truncate text-sm font-bold text-slate-900 dark:text-white">
               {t('printReceipt')} - {sale.invoice_number}
             </h3>
@@ -58,19 +68,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
             <div className="grid w-full grid-cols-3 gap-1 bg-slate-200 dark:bg-slate-700 p-1 rounded-lg text-xs font-semibold sm:flex sm:w-auto sm:gap-0">
               <button
                 onClick={() => setReceiptFormat('80mm')}
-                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === '80mm' ? 'bg-white dark:bg-slate-900 shadow-sm text-emerald-600' : 'text-slate-600 dark:text-slate-300'}`}
+                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === '80mm' ? 'bg-white dark:bg-slate-900 shadow-sm text-rose-600' : 'text-slate-600 dark:text-slate-300'}`}
               >
                 {t('receiptThermal80')}
               </button>
               <button
                 onClick={() => setReceiptFormat('58mm')}
-                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === '58mm' ? 'bg-white dark:bg-slate-900 shadow-sm text-emerald-600' : 'text-slate-600 dark:text-slate-300'}`}
+                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === '58mm' ? 'bg-white dark:bg-slate-900 shadow-sm text-rose-600' : 'text-slate-600 dark:text-slate-300'}`}
               >
                 {t('receiptThermal58')}
               </button>
               <button
                 onClick={() => setReceiptFormat('a4')}
-                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === 'a4' ? 'bg-white dark:bg-slate-900 shadow-sm text-emerald-600' : 'text-slate-600 dark:text-slate-300'}`}
+                className={`px-1.5 py-1.5 leading-tight rounded-md transition sm:whitespace-nowrap sm:px-2.5 sm:py-1 ${receiptFormat === 'a4' ? 'bg-white dark:bg-slate-900 shadow-sm text-rose-600' : 'text-slate-600 dark:text-slate-300'}`}
               >
                 {t('printInvoice')}
               </button>
@@ -79,7 +89,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
             <button
               id="receipt-print-btn"
               onClick={handlePrint}
-              className="flex w-full items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-sm transition sm:w-auto sm:py-1.5"
+              className="flex w-full items-center justify-center gap-1.5 px-3 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 shadow-sm transition sm:w-auto sm:py-1.5"
             >
               <Printer className="w-4 h-4" />
               <span>{t('print')}</span>
@@ -88,12 +98,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
         </div>
 
         {/* Receipt / Invoice Preview Area */}
-        <div className="p-3 sm:p-6 bg-slate-100 dark:bg-slate-950/70 flex justify-center max-h-[75dvh] overflow-y-auto">
+        <div className="receipt-print-area p-3 sm:p-6 bg-slate-100 dark:bg-slate-950/70 flex justify-center max-h-[75dvh] overflow-y-auto">
           
           {/* Printable Container */}
           <div
             id="printable-receipt"
-            className={`bg-white text-black p-6 shadow-md transition-all font-mono text-xs ${
+            data-format={receiptFormat}
+            className={`bg-white text-black p-6 shadow-md transition-all font-mono text-xs font-bold ${
               receiptFormat === '58mm'
                 ? 'w-[58mm] min-h-[140mm] text-[10px] p-3'
                 : receiptFormat === '80mm'
@@ -105,7 +116,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
             {/* Header */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-300">
               <img
-                src="/images/supermarket-logo.png"
+                src="/images/butcher-logo.svg"
                 alt={storeName}
                 className={`mx-auto object-contain ${receiptFormat === '58mm' ? 'size-10' : receiptFormat === '80mm' ? 'size-14' : 'size-20'}`}
               />
@@ -165,6 +176,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
                         <div className="text-[9px] text-slate-500">
                           {item.quantity} x {formatCurrency(item.unit_price)}
                         </div>
+                        {item.net_weight !== undefined && item.net_weight !== null && (
+                          <div className="text-[9px] text-rose-700">
+                            {t('netWeight')}: {Number(item.net_weight).toFixed(3)} {item.weight_unit || 'kg'}
+                            {item.price_per_kg !== undefined && item.price_per_kg !== null && ` · ${formatCurrency(Number(item.price_per_kg))}/kg`}
+                            {item.scale_source && ` · ${item.scale_source === 'web-serial' ? t('useWebSerial') : t('manualWeight')}`}
+                          </div>
+                        )}
                       </td>
                       <td className="text-center py-1 align-top font-bold">{item.quantity}</td>
                       <td className="text-end py-1 align-top font-bold">{formatCurrency(item.total)}</td>

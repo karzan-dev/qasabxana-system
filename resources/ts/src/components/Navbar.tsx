@@ -16,7 +16,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-2 dark:border-slate-800 dark:bg-slate-900 sm:px-6">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <img src="/images/supermarket-logo.png" alt={settings.store_name} className="size-9 shrink-0 rounded-lg object-contain sm:size-11" />
+        <img src="/images/butcher-logo.svg" alt={settings.store_name} className="size-9 shrink-0 rounded-lg object-contain sm:size-11" />
         <div className="min-w-0">
           <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{settings.store_name}</p>
           <p className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:block">{t('appTagline')}</p>

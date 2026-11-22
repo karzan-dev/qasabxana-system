@@ -74,7 +74,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const TONE_CLASSES: Record<string, string> = {
-  teal: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400',
+  teal: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
   emerald: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   rose: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
   sky: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
@@ -313,7 +313,7 @@ export function CashRegisterView() {
       <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900 dark:text-white">
-            <Wallet className="size-5 text-teal-700 dark:text-teal-400" />{t('cash-register')}
+            <Wallet className="size-5 text-rose-700 dark:text-rose-400" />{t('cash-register')}
           </h1>
           <p className="mt-1 text-xs text-slate-500">{activeShift ? `${t('shiftOpen')} · ${activeShift.opener?.name ?? '-'}` : t('noOpenShift')}</p>
         </div>
@@ -322,7 +322,7 @@ export function CashRegisterView() {
             <button type="button" onClick={() => openForm('CASH_IN')} className="flex items-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800"><ArrowDownToLine className="size-4" />{t('cashIn')}</button>
             <button type="button" onClick={() => openForm('CASH_OUT')} className="flex items-center gap-2 rounded-md bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-800"><ArrowUpFromLine className="size-4" />{t('cashOut')}</button>
             <button type="button" onClick={() => openForm('CLOSE')} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">{t('closeShift')}</button>
-          </> : <button type="button" onClick={() => openForm('OPEN')} className="rounded-md bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800">{t('openShift')}</button>}
+          </> : <button type="button" onClick={() => openForm('OPEN')} className="rounded-md bg-rose-700 px-3 py-2 text-xs font-bold text-white hover:bg-rose-800">{t('openShift')}</button>}
         </div>}
       </div>
 
@@ -334,7 +334,7 @@ export function CashRegisterView() {
           </article>)}
         </div>
 
-        {activeShift && <div className="mt-4 grid gap-3 rounded-xl border border-teal-200 bg-teal-50 p-4 text-xs dark:border-teal-900 dark:bg-teal-950/30 sm:grid-cols-3">
+        {activeShift && <div className="mt-4 grid gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs dark:border-rose-900 dark:bg-rose-950/30 sm:grid-cols-3">
           <p><span className="text-slate-500">{t('openingBalance')}: </span><strong>{formatCurrency(Number(activeShift.opening_balance))}</strong></p>
           <p><span className="text-slate-500">{t('expectedBalance')}: </span><strong>{formatCurrency(Number(dashboard?.balance ?? 0))}</strong></p>
           <p><span className="text-slate-500">{t('shiftOpenedBy')}: </span><strong>{activeShift.opener?.name ?? '-'}</strong></p>
@@ -407,7 +407,7 @@ export function CashRegisterView() {
           </> : modal === 'CLOSE' && <div className="rounded-md bg-slate-50 p-3 text-xs dark:bg-slate-800"><p>{t('expectedBalance')}: <strong>{formatCurrency(Number(dashboard?.balance ?? 0))}</strong></p><p className="mt-1">{t('shiftVariance')}: <strong>{formatCurrency(Number(amount || 0) - Number(dashboard?.balance ?? 0))}</strong></p></div>}
           <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">{t('notes')}<textarea value={notes} onChange={event => { setNotes(event.target.value); idempotencyKey.current = null; }} rows={2} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
           <div className="text-[11px] text-slate-500">{t('performedBy')}: {user?.name} · {new Date().toLocaleString()}</div>
-          <div className="flex justify-end gap-2"><button type="button" onClick={resetForm} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold dark:border-slate-700">{t('cancel')}</button><button disabled={saving} className="rounded-md bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('confirm')}</button></div>
+          <div className="flex justify-end gap-2"><button type="button" onClick={resetForm} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold dark:border-slate-700">{t('cancel')}</button><button disabled={saving} className="rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('confirm')}</button></div>
         </form>
       </div>}
 

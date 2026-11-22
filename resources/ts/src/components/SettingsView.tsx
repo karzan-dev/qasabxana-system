@@ -1,19 +1,19 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { Save, Settings } from 'lucide-react';
+﻿import { useEffect, useState, type FormEvent } from 'react';
+import { Save, Scale, Settings } from 'lucide-react';
 import { apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
 import type { AppSettings } from '../types';
 import { NumericInput } from './NumericInput';
 
 const SETTING_FIELDS: Array<{ key: keyof AppSettings; label: string; type?: string; placeholder?: string }> = [
-  { key: 'store_name', label: 'storeName', placeholder: 'Supermarket' },
-  { key: 'store_name_en', label: 'storeNameEn', placeholder: 'Supermarket' },
-  { key: 'store_name_ar', label: 'storeNameAr', placeholder: 'المتجر' },
+  { key: 'store_name', label: 'storeName', placeholder: 'My Butcher Shop' },
+  { key: 'store_name_en', label: 'storeNameEn', placeholder: 'My Butcher Shop' },
+  { key: 'store_name_ar', label: 'storeNameAr', placeholder: 'مجزري' },
   { key: 'store_phone', label: 'phone', type: 'tel', placeholder: '+964 750 000 0000' },
   { key: 'store_address', label: 'address', placeholder: 'Main Street, Erbil' },
   { key: 'currency', label: 'currency', placeholder: 'IQD' },
   { key: 'invoice_prefix', label: 'invoicePrefix', placeholder: 'INV' },
-  { key: 'receipt_footer', label: 'receiptFooter', placeholder: 'Thank you for shopping with us' },
+  { key: 'receipt_footer', label: 'receiptFooter', placeholder: 'Thank you for visiting - fresh cuts, trusted quality' },
   { key: 'low_stock_threshold', label: 'lowStockThreshold', type: 'number', placeholder: '10' },
 ];
 
@@ -36,7 +36,7 @@ export function SettingsView() {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-2"><Settings className="size-5 text-teal-700" /><h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('settings')}</h1></div>
+      <div className="flex items-center gap-2"><Settings className="size-5 text-rose-700" /><h1 className="text-xl font-bold text-slate-900 dark:text-white">{t('settings')}</h1></div>
       <form onSubmit={event => void saveSettings(event)} className="rounded-md border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800"><h2 className="text-sm font-bold text-slate-900 dark:text-white">{t('storeInformation')}</h2></div>
         <div className="grid gap-4 p-4 sm:grid-cols-2">{SETTING_FIELDS.map(({ key, label, type, placeholder }) => <label key={key} className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t(label)}{type === 'number' ? <NumericInput min="0" value={form[key] ?? ''} onValueChange={value => setForm(current => ({ ...current, [key]: value }))} placeholder={placeholder} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white" /> : <input type={type || 'text'} value={form[key]} onChange={event => setForm(current => ({ ...current, [key]: event.target.value }))} placeholder={placeholder} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white" />}</label>)}
@@ -93,7 +93,20 @@ export function SettingsView() {
             </select>
           </label>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800"><div className="flex items-center gap-3 text-xs"><label className="flex items-center gap-2">{t('theme')}<select value={theme} onChange={event => setTheme(event.target.value as 'light' | 'dark')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="light">{t('light')}</option><option value="dark">{t('dark')}</option></select></label><label className="flex items-center gap-2">{t('language')}<select value={language} onChange={event => setLanguage(event.target.value as 'ku' | 'en' | 'ar')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="ku">کوردی</option><option value="en">English</option><option value="ar">العربية</option></select></label></div><button disabled={saving} className="flex items-center gap-2 rounded-md bg-teal-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"><Save className="size-4" />{saving ? t('loading') : t('save')}</button></div>
+        <div className="border-y border-slate-200 px-4 py-3 dark:border-slate-800">
+          <div className="flex items-center gap-2"><Scale className="size-4 text-rose-700" /><h2 className="text-sm font-bold text-slate-900 dark:text-white">{t('scaleSettings')}</h2></div>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('smartScale')} - Web Serial / manual</p>
+        </div>
+        <div className="grid gap-4 p-4 sm:grid-cols-2">
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('scaleEnabled')}<select value={form.scale_enabled ?? '0'} onChange={event => setForm(current => ({ ...current, scale_enabled: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="0">{t('no')}</option><option value="1">{t('yes')}</option></select></label>
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('scaleMode')}<select value={form.scale_mode ?? 'manual'} onChange={event => setForm(current => ({ ...current, scale_mode: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="manual">{t('useManual')}</option><option value="web_serial">{t('useWebSerial')}</option></select></label>
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('scalePort')}<input type="text" value={form.scale_port ?? ''} onChange={event => setForm(current => ({ ...current, scale_port: event.target.value }))} placeholder="COM3" className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('scaleBaudRate')}<select value={form.scale_baud_rate ?? '9600'} onChange={event => setForm(current => ({ ...current, scale_baud_rate: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white">{[1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200].map(rate => <option key={rate} value={rate}>{rate}</option>)}</select></label>
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('weightDecimals')}<select value={form.weight_decimals ?? '3'} onChange={event => setForm(current => ({ ...current, weight_decimals: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="2">2</option><option value="3">3</option></select></label>
+          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('receiptWidth')}<select value={form.receipt_width ?? '80mm'} onChange={event => setForm(current => ({ ...current, receipt_width: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="58mm">58mm</option><option value="80mm">80mm</option><option value="a4">A4</option></select></label>
+          <p className="text-[11px] leading-relaxed text-slate-500 sm:col-span-2 dark:text-slate-400">{t('scalePortNote')} {t('scaleBrowserNote')}</p>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800"><div className="flex items-center gap-3 text-xs"><label className="flex items-center gap-2">{t('theme')}<select value={theme} onChange={event => setTheme(event.target.value as 'light' | 'dark')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="light">{t('light')}</option><option value="dark">{t('dark')}</option></select></label><label className="flex items-center gap-2">{t('language')}<select value={language} onChange={event => setLanguage(event.target.value as 'ku' | 'en' | 'ar')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="ku">کوردی</option><option value="en">English</option><option value="ar">العربية</option></select></label></div><button disabled={saving} className="flex items-center gap-2 rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"><Save className="size-4" />{saving ? t('loading') : t('save')}</button></div>
       </form>
     </section>
   );

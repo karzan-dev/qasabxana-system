@@ -38,7 +38,7 @@ export function MobileNav() {
   };
 
   const tabClass = (active: boolean) => `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 pt-2 pb-1.5 text-[10px] font-semibold transition-colors ${
-    active ? 'text-teal-700 dark:text-teal-300' : 'text-slate-500 dark:text-slate-400'
+    active ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'
   }`;
 
   return (
@@ -63,7 +63,7 @@ export function MobileNav() {
                   aria-current={activeTab === id ? 'page' : undefined}
                   className={`flex flex-col items-center gap-2 rounded-xl border px-2 py-3 text-center text-[11px] font-semibold leading-tight ${
                     activeTab === id
-                      ? 'border-teal-600 bg-teal-50 text-teal-800 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-200'
+                      ? 'border-rose-600 bg-rose-50 text-rose-800 dark:border-rose-500 dark:bg-rose-950/40 dark:text-rose-200'
                       : 'border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200'
                   }`}
                 >
@@ -82,7 +82,7 @@ export function MobileNav() {
                     onClick={() => setLanguage(item.code)}
                     aria-pressed={language === item.code}
                     className={`rounded-md py-2 text-xs font-semibold ${
-                      language === item.code ? 'bg-white text-teal-800 shadow-sm dark:bg-slate-950 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300'
+                      language === item.code ? 'bg-white text-rose-800 shadow-sm dark:bg-slate-950 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300'
                     }`}
                   >
                     {item.label}

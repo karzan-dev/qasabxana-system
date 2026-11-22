@@ -28,6 +28,12 @@ class SettingController extends Controller
             'expiry_alerts_expired' => 'required|boolean',
             'expiry_alerts_bell' => 'required|boolean',
             'expiry_alerts_dashboard' => 'required|boolean',
+            'scale_enabled' => 'nullable|boolean',
+            'scale_mode' => 'nullable|in:manual,web_serial',
+            'scale_port' => 'nullable|string|max:100',
+            'scale_baud_rate' => 'nullable|integer|in:1200,2400,4800,9600,19200,38400,57600,115200',
+            'weight_decimals' => 'nullable|integer|in:2,3',
+            'receipt_width' => 'nullable|in:58mm,80mm,a4',
         ]);
         $data = $request->except(['_token', '_method']);
 
@@ -45,6 +51,8 @@ class SettingController extends Controller
             'allow_negative_stock', 'low_stock_threshold', 'expiry_alerts_enabled',
             'expiry_warning_days', 'expiry_urgent_days', 'expiry_alerts_expired',
             'expiry_alerts_bell', 'expiry_alerts_dashboard',
+            'scale_enabled', 'scale_mode', 'scale_port', 'scale_baud_rate',
+            'weight_decimals', 'receipt_width',
         ];
 
         foreach ($data as $key => $value) {
@@ -55,7 +63,8 @@ class SettingController extends Controller
                 ['key_name' => $key],
                 [
                     'key_value' => (string) $value,
-                    'group_name' => str_starts_with($key, 'expiry_') ? 'expiry' : 'general',
+                    'group_name' => str_starts_with($key, 'expiry_') ? 'expiry'
+                        : (in_array($key, ['scale_enabled', 'scale_mode', 'scale_port', 'scale_baud_rate', 'weight_decimals', 'receipt_width'], true) ? 'scale' : 'general'),
                 ]
             );
         }

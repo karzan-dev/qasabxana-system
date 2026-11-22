@@ -38,8 +38,14 @@ class PosController extends Controller
         $validated = $request->validate([
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.quantity' => 'required|numeric|min:0.001',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.gross_weight' => 'nullable|numeric|min:0',
+            'items.*.tare_weight' => 'nullable|numeric|min:0',
+            'items.*.net_weight' => 'nullable|numeric|min:0',
+            'items.*.weight_unit' => 'nullable|string|in:g,kg',
+            'items.*.scale_source' => 'nullable|string|max:30',
+            'items.*.price_per_kg' => 'nullable|numeric|min:0',
             'customer_id' => 'nullable|exists:customers,id',
             'customer' => 'nullable|array',
             'customer.name' => 'required_with:customer|string|max:100',
@@ -53,7 +59,12 @@ class PosController extends Controller
         ]);
 
         $userId = (int) $request->user()->id;
-        $items = $validated['items'];
+        $productIds = array_values(array_unique(array_map(
+            static fn (array $item): int => (int) $item['product_id'],
+            $validated['items'],
+        )));
+        $productPreview = Product::with('unit')->whereIn('id', $productIds)->get()->keyBy('id');
+        $items = $this->normalizeWeightedItems($validated['items'], $productPreview);
         $discount = (float) ($validated['discount'] ?? 0);
         $paymentMethod = $validated['payment_method'];
         $customerId = $validated['customer_id'] ?? null;
@@ -122,6 +133,12 @@ class PosController extends Controller
                 $saleItemsToInsert[] = [
                     'product' => $product,
                     'quantity' => $qty,
+                    'gross_weight' => isset($item['gross_weight']) ? (float) $item['gross_weight'] : null,
+                    'tare_weight' => isset($item['tare_weight']) ? (float) $item['tare_weight'] : null,
+                    'net_weight' => isset($item['net_weight']) ? (float) $item['net_weight'] : null,
+                    'weight_unit' => $item['weight_unit'] ?? null,
+                    'scale_source' => $item['scale_source'] ?? null,
+                    'price_per_kg' => isset($item['price_per_kg']) ? (float) $item['price_per_kg'] : null,
                     'unit_price' => $unitPrice,
                     'purchase_cost' => (float) $product->purchase_price,
                     'discount' => 0,
@@ -192,6 +209,12 @@ class PosController extends Controller
                     'sale_id' => $sale->id,
                     'product_id' => $product->id,
                     'quantity' => $entry['quantity'],
+                    'gross_weight' => $entry['gross_weight'],
+                    'tare_weight' => $entry['tare_weight'],
+                    'net_weight' => $entry['net_weight'],
+                    'weight_unit' => $entry['weight_unit'],
+                    'scale_source' => $entry['scale_source'],
+                    'price_per_kg' => $entry['price_per_kg'],
                     'unit_price' => $entry['unit_price'],
                     'purchase_cost' => $entry['purchase_cost'],
                     'discount' => $entry['discount'],
@@ -219,6 +242,13 @@ class PosController extends Controller
                     'name_ku' => $product->name_ku,
                     'barcode' => $product->barcode,
                     'quantity' => $entry['quantity'],
+                    'gross_weight' => $entry['gross_weight'],
+                    'tare_weight' => $entry['tare_weight'],
+                    'net_weight' => $entry['net_weight'],
+                    'weight_unit' => $entry['weight_unit'],
+                    'scale_source' => $entry['scale_source'],
+                    'price_per_kg' => $entry['price_per_kg'],
+                    'is_weighted' => (bool) $product->is_weighted,
                     'unit_price' => $entry['unit_price'],
                     'discount' => $entry['discount'],
                     'total' => $entry['total'],
@@ -293,6 +323,47 @@ class PosController extends Controller
         });
     }
 
+    /**
+     * Weighted items are priced server-side from the product's per-kg price.
+     * The scale's net weight (gross - tare) becomes the sale quantity in kg.
+     */
+    private function normalizeWeightedItems(array $items, $products): array
+    {
+        return array_map(function (array $item) use ($products): array {
+            $product = $products->get((int) $item['product_id']);
+            $unitCode = strtolower((string) ($product?->unit?->short_code ?? ''));
+            $isWeighted = (bool) ($product?->is_weighted ?? false) || in_array($unitCode, ['kg', 'g'], true);
+
+            if (! $isWeighted) {
+                return $item;
+            }
+
+            $weightUnit = strtolower((string) ($item['weight_unit'] ?? 'kg'));
+            $gross = isset($item['gross_weight']) ? (float) $item['gross_weight'] : null;
+            $tare = isset($item['tare_weight']) ? (float) $item['tare_weight'] : (float) ($product?->tare_weight ?? 0);
+            $net = isset($item['net_weight'])
+                ? (float) $item['net_weight']
+                : ($gross !== null ? $gross - $tare : (float) $item['quantity']);
+
+            if ($net <= 0) {
+                throw ValidationException::withMessages(['items' => 'Weighted items require a net weight greater than zero.']);
+            }
+
+            $netKg = $weightUnit === 'g' ? $net / 1000 : $net;
+            $pricePerKg = (float) ($product->price_per_kg ?: $product->selling_price);
+
+            $item['quantity'] = round($netKg, 3);
+            $item['unit_price'] = $pricePerKg;
+            $item['price_per_kg'] = $pricePerKg;
+            $item['gross_weight'] = $gross;
+            $item['tare_weight'] = $tare;
+            $item['net_weight'] = round($net, 3);
+            $item['weight_unit'] = $weightUnit;
+
+            return $item;
+        }, $items);
+    }
+
     private function activeCashShift(int $userId): CashRegisterShift
     {
         $account = CashRegisterAccount::query()->lockForUpdate()->findOrFail(1);
@@ -317,6 +388,13 @@ class PosController extends Controller
             'name_ku' => $item->product?->name_ku,
             'barcode' => $item->product?->barcode,
             'quantity' => $item->quantity,
+            'gross_weight' => $item->gross_weight,
+            'tare_weight' => $item->tare_weight,
+            'net_weight' => $item->net_weight,
+            'weight_unit' => $item->weight_unit,
+            'scale_source' => $item->scale_source,
+            'price_per_kg' => $item->price_per_kg,
+            'is_weighted' => (bool) $item->product?->is_weighted,
             'unit_price' => $item->unit_price,
             'discount' => $item->discount,
             'total' => $item->total,

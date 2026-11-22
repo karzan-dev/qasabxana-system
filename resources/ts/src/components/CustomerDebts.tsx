@@ -101,7 +101,7 @@ interface DebtHistoryRow {
   user_name: string | null;
 }
 
-const inputClass = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-white';
+const inputClass = 'mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500/30 dark:border-slate-700 dark:bg-slate-800 dark:text-white';
 const labelClass = 'block text-xs font-semibold text-slate-600 dark:text-slate-300';
 
 /** Totals plus the list of overdue / soon-due notebook debts, shown at the top of the Customers page. */
@@ -242,7 +242,7 @@ export function NotebookDebtModal({ customers, initialCustomerId, onClose, onSav
       <form onSubmit={event => void submit(event)} className="my-auto w-full max-w-lg space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 id="notebook-debt-title" className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"><BookOpen className="size-5 text-teal-700 dark:text-teal-400" />{tt('addNotebookDebt')}</h3>
+            <h3 id="notebook-debt-title" className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white"><BookOpen className="size-5 text-rose-700 dark:text-rose-400" />{tt('addNotebookDebt')}</h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{tt('notebookHint')}</p>
           </div>
           <button type="button" onClick={onClose} aria-label={tt('cancel')} className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="size-5" /></button>
@@ -251,7 +251,7 @@ export function NotebookDebtModal({ customers, initialCustomerId, onClose, onSav
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-xs font-semibold dark:bg-slate-800">
           {(['existing', 'new'] as const).map(option => (
             <button key={option} type="button" onClick={() => { setMode(option); idempotencyKey.current = null; }} aria-pressed={mode === option}
-              className={`rounded-lg py-2 ${mode === option ? 'bg-white text-teal-800 shadow-sm dark:bg-slate-950 dark:text-teal-300' : 'text-slate-600 dark:text-slate-300'}`}>
+              className={`rounded-lg py-2 ${mode === option ? 'bg-white text-rose-800 shadow-sm dark:bg-slate-950 dark:text-rose-300' : 'text-slate-600 dark:text-slate-300'}`}>
               {tt(option === 'existing' ? 'existingCustomer' : 'newCustomer')}
             </button>
           ))}
@@ -294,7 +294,7 @@ export function NotebookDebtModal({ customers, initialCustomerId, onClose, onSav
 
         <div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
           <button type="button" onClick={onClose} className="rounded-xl border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">{tt('cancel')}</button>
-          <button type="submit" disabled={saving} className="rounded-xl bg-teal-700 px-5 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:opacity-50">{saving ? tt('saving') : tt('save')}</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-rose-700 px-5 py-2 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50">{saving ? tt('saving') : tt('save')}</button>
         </div>
       </form>
     </div>
@@ -348,7 +348,7 @@ export function DebtHistoryModal({ customerId, canManage, onClose, onChanged }: 
       <div className="my-auto w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4 dark:border-slate-800">
           <div className="min-w-0">
-            <h3 id="debt-history-title" className="flex items-center gap-2 truncate text-base font-bold text-slate-900 dark:text-white"><History className="size-5 shrink-0 text-teal-700 dark:text-teal-400" />{tt('history')}{data ? ` · ${data.customer.name}` : ''}</h3>
+            <h3 id="debt-history-title" className="flex items-center gap-2 truncate text-base font-bold text-slate-900 dark:text-white"><History className="size-5 shrink-0 text-rose-700 dark:text-rose-400" />{tt('history')}{data ? ` · ${data.customer.name}` : ''}</h3>
             {data && <p className="mt-1 text-xs text-slate-500">{tt('currentDebt')}: <span className="font-mono font-bold text-rose-600 dark:text-rose-400">{formatCurrency(Number(data.customer.debt))}</span></p>}
           </div>
           <button type="button" onClick={onClose} aria-label={tt('cancel')} className="grid size-9 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"><X className="size-5" /></button>

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Product;
+use App\Models\Unit;
 use App\Services\ProductExpiryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,7 @@ class ProductController extends Controller
             $query->where(function ($q) use ($s) {
                 $q->where('name_ku', 'like', "%{$s}%")
                     ->orWhere('barcode', 'like', "%{$s}%")
+                    ->orWhere('scale_product_code', 'like', "%{$s}%")
                     ->orWhere('sku', 'like', "%{$s}%");
             });
         }
@@ -55,11 +57,15 @@ class ProductController extends Controller
                 'id' => $p->id,
                 'barcode' => $p->barcode,
                 'sku' => $p->sku,
+                'scale_product_code' => $p->scale_product_code,
                 'name_ku' => $p->name_ku,
                 'category_id' => $p->category_id,
                 'unit_id' => $p->unit_id,
+                'is_weighted' => (bool) $p->is_weighted,
                 'purchase_price' => (float) $p->purchase_price,
                 'selling_price' => (float) $p->selling_price,
+                'price_per_kg' => $p->price_per_kg === null ? null : (float) $p->price_per_kg,
+                'tare_weight' => (float) $p->tare_weight,
                 'wholesale_price' => (float) $p->wholesale_price,
                 'quantity' => (float) $p->quantity,
                 'min_stock' => (float) $p->min_stock,
@@ -92,12 +98,18 @@ class ProductController extends Controller
             'wholesale_price' => 'nullable|numeric|min:0',
             'quantity' => 'nullable|numeric|min:0',
             'min_stock' => 'nullable|numeric|min:0',
+            'is_weighted' => 'nullable|boolean',
+            'price_per_kg' => 'nullable|numeric|min:0',
+            'tare_weight' => 'nullable|numeric|min:0',
+            'scale_product_code' => 'nullable|string|max:50',
             'expiry_date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'description' => 'nullable|string',
         ], [
             'barcode.unique' => 'ئەم بارکۆدە پێشتر بەکار هاتووە.',
         ]);
+
+        $this->applyWeightedDefaults($validated);
 
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', 'public');
@@ -143,6 +155,10 @@ class ProductController extends Controller
             'wholesale_price' => 'nullable|numeric|min:0',
             'quantity' => 'nullable|numeric|min:0',
             'min_stock' => 'nullable|numeric|min:0',
+            'is_weighted' => 'nullable|boolean',
+            'price_per_kg' => 'nullable|numeric|min:0',
+            'tare_weight' => 'nullable|numeric|min:0',
+            'scale_product_code' => 'nullable|string|max:50',
             'expiry_date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'remove_image' => 'nullable|boolean',
@@ -150,6 +166,8 @@ class ProductController extends Controller
         ], [
             'barcode.unique' => 'ئەم بارکۆدە پێشتر بەکار هاتووە.',
         ]);
+
+        $this->applyWeightedDefaults($validated);
 
         $oldImage = $product->image;
         $removeOldImage = (bool) ($validated['remove_image'] ?? false);
@@ -200,7 +218,10 @@ class ProductController extends Controller
     public function findByBarcode($barcode)
     {
         $product = Product::with(['category', 'unit'])
-            ->where('barcode', $barcode)
+            ->where(function ($query) use ($barcode): void {
+                $query->where('barcode', $barcode)
+                    ->orWhere('scale_product_code', $barcode);
+            })
             ->where('status', 'ACTIVE')
             ->first();
 
@@ -215,5 +236,22 @@ class ProductController extends Controller
                 $product->image ? asset('storage/'.ltrim($product->image, '/')) : null,
             ),
         ]);
+    }
+
+    /** Keep the weighted flag consistent with the selected unit. */
+    private function applyWeightedDefaults(array &$validated): void
+    {
+        $unit = Unit::find((int) ($validated['unit_id'] ?? 0));
+        $unitIsWeight = $unit !== null && in_array(strtolower((string) $unit->short_code), ['kg', 'g'], true);
+        $explicitlyWeighted = ! empty($validated['is_weighted']);
+        $validated['is_weighted'] = $unitIsWeight || $explicitlyWeighted;
+
+        if ($validated['is_weighted'] && empty($validated['price_per_kg'])) {
+            $validated['price_per_kg'] = $validated['selling_price'];
+        }
+
+        if (! $validated['is_weighted']) {
+            $validated['price_per_kg'] = null;
+        }
     }
 }

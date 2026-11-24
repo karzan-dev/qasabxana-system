@@ -27,8 +27,7 @@ class BackupApiTest extends TestCase
             'role_id' => $role->id,
             'status' => 'ACTIVE',
         ]);
-        DB::table('settings')->insert([
-            'key_name' => 'store_name',
+        DB::table('settings')->updateOrInsert(['key_name' => 'store_name'], [
             'key_value' => "Oscar's store",
             'group_name' => 'general',
         ]);
@@ -38,6 +37,7 @@ class BackupApiTest extends TestCase
 
         $this->assertStringContainsString('INSERT INTO `settings`', $backup);
         $this->assertStringContainsString("'Oscar''s store'", $backup);
+        $this->assertStringContainsString('DELETE FROM `customer_debt_entries`;', $backup);
         $this->assertStringContainsString('`password`', $backup);
         $this->assertStringNotContainsString('`remember_token`', $backup);
         $this->assertStringContainsString('SET FOREIGN_KEY_CHECKS=0;', $backup);

@@ -398,6 +398,42 @@ class CashRegisterTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 2);
     }
 
+    public function test_gram_stock_server_prices_and_fractional_returns(): void
+    {
+        $this->actingAs($this->createUser('MANAGER'), 'sanctum');
+        $product = $this->createProduct();
+        $product->unit->update(['short_code' => 'g']);
+        $product->update(['is_weighted' => true, 'selling_price' => 35, 'price_per_kg' => 35001, 'purchase_price' => 22, 'quantity' => 2500]);
+        $this->getJson('/api/products/barcode/CASH-TEST-001')->assertOk()->assertJsonPath('data.quantity', 2500)->assertJsonPath('data.unit_code', 'g');
+
+        $sale = $this->postJson('/api/pos/complete-sale', [
+            'items' => [['product_id' => $product->id, 'quantity' => 0.333, 'net_weight' => 0.333, 'weight_unit' => 'kg', 'unit_price' => 1]],
+            'payment_method' => 'CASH',
+            'cash_received' => '11655.33',
+            'idempotency_key' => (string) Str::uuid(),
+        ])->assertOk()->json('data.sale');
+        self::assertEquals(2167, (float) $product->fresh()->quantity);
+        self::assertEquals(11655.33, (float) $sale['total']);
+        self::assertEquals(7326, (float) $sale['cost_of_goods']);
+
+        foreach ([0.005, 332.995] as $quantity) {
+            $this->postJson('/api/returns/process', [
+                'sale_id' => $sale['id'],
+                'items' => [['product_id' => $product->id, 'quantity' => $quantity]],
+                'idempotency_key' => (string) Str::uuid(),
+            ])->assertOk();
+        }
+        self::assertEquals(2500, (float) $product->fresh()->quantity);
+
+        $product->unit->update(['short_code' => 'pcs']);
+        $product->update(['is_weighted' => false, 'price_per_kg' => null]);
+        $this->postJson('/api/pos/complete-sale', [
+            'items' => [['product_id' => $product->id, 'quantity' => 1, 'unit_price' => 1]],
+            'payment_method' => 'CARD',
+            'idempotency_key' => (string) Str::uuid(),
+        ])->assertOk()->assertJsonPath('data.sale.total', '35.00');
+    }
+
     private function createUser(string $roleName): User
     {
         $role = Role::create([

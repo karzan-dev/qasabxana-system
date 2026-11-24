@@ -15,6 +15,7 @@ class RolePermissionTest extends TestCase
     public function test_business_endpoints_reject_unauthenticated_requests(): void
     {
         $this->getJson('/api/products')->assertUnauthorized();
+        $this->get('/api/products')->assertUnauthorized();
         $this->getJson('/api/dashboard/stats')->assertUnauthorized();
         $this->postJson('/api/products', [])->assertUnauthorized();
     }

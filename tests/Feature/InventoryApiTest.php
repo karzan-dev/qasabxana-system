@@ -109,7 +109,7 @@ class InventoryApiTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.damage_reason', 'BROKEN')
-            ->assertJsonPath('data.quantity', '3.00');
+            ->assertJsonPath('data.quantity', '3.000');
 
         $this->assertDatabaseHas('products', [
             'id' => $product->id,
@@ -149,7 +149,7 @@ class InventoryApiTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
-    public function test_damage_recording_rejects_fractional_quantity(): void
+    public function test_damage_recording_accepts_fractions_only_for_weighted_products(): void
     {
         $product = $this->createProduct();
 
@@ -164,6 +164,13 @@ class InventoryApiTest extends TestCase
             'quantity' => '20.00',
         ]);
         $this->assertDatabaseCount('stock_movements', 0);
+
+        $product->update(['is_weighted' => true]);
+        $this->postJson('/api/inventory/damage', [
+            'product_id' => $product->id,
+            'quantity' => '1.525',
+            'damage_reason' => 'SPOILED',
+        ])->assertCreated()->assertJsonPath('data.new_quantity', '18.475');
     }
 
     public function test_pending_sku_migration_preserves_existing_product_skus(): void

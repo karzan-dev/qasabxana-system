@@ -52,36 +52,7 @@ class ProductController extends Controller
             }
         }
 
-        $products = $query->latest('id')->get()->map(function ($p) {
-            return [
-                'id' => $p->id,
-                'barcode' => $p->barcode,
-                'sku' => $p->sku,
-                'scale_product_code' => $p->scale_product_code,
-                'name_ku' => $p->name_ku,
-                'category_id' => $p->category_id,
-                'unit_id' => $p->unit_id,
-                'is_weighted' => (bool) $p->is_weighted,
-                'purchase_price' => (float) $p->purchase_price,
-                'selling_price' => (float) $p->selling_price,
-                'price_per_kg' => $p->price_per_kg === null ? null : (float) $p->price_per_kg,
-                'tare_weight' => (float) $p->tare_weight,
-                'wholesale_price' => (float) $p->wholesale_price,
-                'quantity' => (float) $p->quantity,
-                'min_stock' => (float) $p->min_stock,
-                'expiry_date' => $p->expiry_date ? $p->expiry_date->format('Y-m-d') : null,
-                'image' => $p->image ? asset('storage/'.ltrim($p->image, '/')) : null,
-                'description' => $p->description,
-                'status' => $p->status,
-                'category_ku' => $p->category ? $p->category->name_ku : '',
-                'category_en' => $p->category ? $p->category->name_en : '',
-                'category_ar' => $p->category ? $p->category->name_ar : '',
-                'unit_ku' => $p->unit ? $p->unit->name_ku : '',
-                'unit_en' => $p->unit ? $p->unit->name_en : '',
-                'unit_ar' => $p->unit ? $p->unit->name_ar : '',
-                'unit_code' => $p->unit ? $p->unit->short_code : '',
-            ];
-        });
+        $products = $query->latest('id')->get()->map(fn (Product $p) => $this->payload($p));
 
         return response()->json(['success' => true, 'data' => $products]);
     }
@@ -231,11 +202,41 @@ class ProductController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $product->setAttribute(
-                'image',
-                $product->image ? asset('storage/'.ltrim($product->image, '/')) : null,
-            ),
+            'data' => $this->payload($product),
         ]);
+    }
+
+    /** Numbers stay numbers: model decimal casts would serialize them as strings. */
+    private function payload(Product $p): array
+    {
+        return [
+            'id' => $p->id,
+            'barcode' => $p->barcode,
+            'sku' => $p->sku,
+            'scale_product_code' => $p->scale_product_code,
+            'name_ku' => $p->name_ku,
+            'category_id' => $p->category_id,
+            'unit_id' => $p->unit_id,
+            'is_weighted' => (bool) $p->is_weighted,
+            'purchase_price' => (float) $p->purchase_price,
+            'selling_price' => (float) $p->selling_price,
+            'price_per_kg' => $p->price_per_kg === null ? null : (float) $p->price_per_kg,
+            'tare_weight' => (float) $p->tare_weight,
+            'wholesale_price' => (float) $p->wholesale_price,
+            'quantity' => (float) $p->quantity,
+            'min_stock' => (float) $p->min_stock,
+            'expiry_date' => $p->expiry_date ? $p->expiry_date->format('Y-m-d') : null,
+            'image' => $p->image ? asset('storage/'.ltrim($p->image, '/')) : null,
+            'description' => $p->description,
+            'status' => $p->status,
+            'category_ku' => $p->category ? $p->category->name_ku : '',
+            'category_en' => $p->category ? $p->category->name_en : '',
+            'category_ar' => $p->category ? $p->category->name_ar : '',
+            'unit_ku' => $p->unit ? $p->unit->name_ku : '',
+            'unit_en' => $p->unit ? $p->unit->name_en : '',
+            'unit_ar' => $p->unit ? $p->unit->name_ar : '',
+            'unit_code' => $p->unit ? $p->unit->short_code : '',
+        ];
     }
 
     /** Keep the weighted flag consistent with the selected unit. */
@@ -247,7 +248,7 @@ class ProductController extends Controller
         $validated['is_weighted'] = $unitIsWeight || $explicitlyWeighted;
 
         if ($validated['is_weighted'] && empty($validated['price_per_kg'])) {
-            $validated['price_per_kg'] = $validated['selling_price'];
+            $validated['price_per_kg'] = $validated['selling_price'] * (strtolower((string) $unit?->short_code) === 'g' ? 1000 : 1);
         }
 
         if (! $validated['is_weighted']) {

@@ -122,9 +122,9 @@ class PosController extends Controller
                 $product = $productsById[(int) $item['product_id']];
                 $qty = (float) $item['quantity'];
                 $unitPrice = (float) $item['unit_price'];
-                $lineSubtotal = $qty * $unitPrice;
+                $lineSubtotal = round($qty * ($item['exact_unit_price'] ?? $unitPrice), 2);
                 $itemTotal = $lineSubtotal;
-                $itemCost = $qty * (float) $product->purchase_price;
+                $itemCost = round($qty * (float) $product->purchase_price, 2);
                 $itemProfit = $itemTotal - $itemCost;
 
                 $subtotal += $lineSubtotal;
@@ -147,8 +147,9 @@ class PosController extends Controller
                 ];
             }
 
-            $saleDiscount = min($discount, $subtotal);
-            $total = max(0, $subtotal - $saleDiscount);
+            $subtotal = round($subtotal, 2);
+            $saleDiscount = round(min($discount, $subtotal), 2);
+            $total = round($subtotal - $saleDiscount, 2);
             if ($paymentMethod === 'CASH' && $cashReceived < $total) {
                 throw ValidationException::withMessages([
                     'cash_received' => 'The cash received must cover the sale total.',
@@ -325,7 +326,7 @@ class PosController extends Controller
 
     /**
      * Weighted items are priced server-side from the product's per-kg price.
-     * The scale's net weight (gross - tare) becomes the sale quantity in kg.
+     * The net weight (gross - tare) becomes the sale quantity in the product's stock unit (g or kg).
      */
     private function normalizeWeightedItems(array $items, $products): array
     {
@@ -335,6 +336,8 @@ class PosController extends Controller
             $isWeighted = (bool) ($product?->is_weighted ?? false) || in_array($unitCode, ['kg', 'g'], true);
 
             if (! $isWeighted) {
+                $item['unit_price'] = (float) $product->selling_price;
+
                 return $item;
             }
 
@@ -350,10 +353,12 @@ class PosController extends Controller
             }
 
             $netKg = $weightUnit === 'g' ? $net / 1000 : $net;
-            $pricePerKg = (float) ($product->price_per_kg ?: $product->selling_price);
+            $unitsPerKg = $unitCode === 'g' ? 1000 : 1;
+            $pricePerKg = (float) $product->price_per_kg ?: (float) $product->selling_price * $unitsPerKg;
 
-            $item['quantity'] = round($netKg, 3);
-            $item['unit_price'] = $pricePerKg;
+            $item['quantity'] = round($netKg * $unitsPerKg, 3);
+            $item['exact_unit_price'] = $pricePerKg / $unitsPerKg;
+            $item['unit_price'] = round($item['exact_unit_price'], 2);
             $item['price_per_kg'] = $pricePerKg;
             $item['gross_weight'] = $gross;
             $item['tare_weight'] = $tare;

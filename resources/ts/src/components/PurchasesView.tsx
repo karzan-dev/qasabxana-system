@@ -311,7 +311,7 @@ export function PurchasesView() {
                 </ul>}
               </div>
             </label>
-            <label className="text-xs font-semibold">{t('quantity')}<NumericInput required min="0.01" step="0.01" value={line.quantity} onValueChange={value => updateLine(index, { quantity: value })} placeholder={t('quantity')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
+            <label className="text-xs font-semibold">{t('quantity')}<NumericInput required min="0.001" step="0.001" value={line.quantity} onValueChange={value => updateLine(index, { quantity: value })} placeholder={t('quantity')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
             <label className="text-xs font-semibold">{t('purchasePrice')}<NumericInput required min="0" step="0.01" value={line.purchase_price} onValueChange={value => updateLine(index, { purchase_price: value })} placeholder={t('purchasePrice')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>
             <button type="button" onClick={() => setLines(current => current.filter((_, lineIndex) => lineIndex !== index))} aria-label={t('delete')} className="mb-1 rounded p-1 text-rose-600"><Trash2 className="size-4" /></button>
           </div>;

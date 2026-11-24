@@ -20,6 +20,7 @@ class BackupController extends Controller
         'units',
         'products',
         'customers',
+        'customer_debt_entries',
         'suppliers',
         'sales',
         'sale_items',
@@ -48,12 +49,14 @@ class BackupController extends Controller
 
             echo "-- Butcher shop data backup\n";
             echo '-- Generated at '.now()->toIso8601String()."\n";
-            echo "-- Import into an empty database after running the application's migrations.\n\n";
+            echo "-- Import after running the application's migrations. Existing rows in these tables are replaced.\n\n";
             echo "SET NAMES utf8mb4;\n";
             echo "SET FOREIGN_KEY_CHECKS=0;\n";
             echo "START TRANSACTION;\n\n";
 
             foreach (self::TABLES as $table) {
+                // Migrations seed some rows; without this their keys collide on import.
+                echo 'DELETE FROM `'.$table."`;\n";
                 foreach ($connection->table($table)->cursor() as $row) {
                     $record = (array) $row;
                     if ($table === 'users') {

@@ -115,7 +115,7 @@ class ReturnController extends Controller
             'sale_id' => 'required|exists:sales,id',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|numeric|min:0.01',
+            'items.*.quantity' => 'required|numeric|min:0.001|decimal:0,3',
             'reason' => 'nullable|string|max:255',
             'idempotency_key' => 'required|uuid|max:64',
         ]);
@@ -124,7 +124,7 @@ class ReturnController extends Controller
         $saleId = (int) $validated['sale_id'];
         $items = $validated['items'];
         $normalizedItems = collect($items)->groupBy('product_id')
-            ->map(fn ($group) => number_format((float) $group->sum('quantity'), 2, '.', ''))
+            ->map(fn ($group) => number_format((float) $group->sum('quantity'), 3, '.', ''))
             ->sortKeys()
             ->all();
         $requestHash = hash('sha256', json_encode([
@@ -166,7 +166,7 @@ class ReturnController extends Controller
                     ->whereHas('return', fn ($query) => $query->where('sale_id', $sale->id))
                     ->where('product_id', $productId)
                     ->sum('quantity');
-                if ($alreadyReturned + $quantity > (float) $saleItem->quantity) {
+                if (round($alreadyReturned + $quantity, 3) > (float) $saleItem->quantity) {
                     throw ValidationException::withMessages([
                         'items' => 'The return quantity exceeds the quantity sold and not previously returned.',
                     ]);

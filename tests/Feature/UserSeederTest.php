@@ -12,27 +12,6 @@ class UserSeederTest extends TestCase
 {
     use RefreshDatabase;
 
-    private string|false $previousAdminPassword;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->previousAdminPassword = getenv('INITIAL_ADMIN_PASSWORD');
-        putenv('INITIAL_ADMIN_PASSWORD=Test-Admin-Password-2026');
-    }
-
-    protected function tearDown(): void
-    {
-        if ($this->previousAdminPassword === false) {
-            putenv('INITIAL_ADMIN_PASSWORD');
-        } else {
-            putenv("INITIAL_ADMIN_PASSWORD={$this->previousAdminPassword}");
-        }
-
-        parent::tearDown();
-    }
-
     public function test_seeded_admin_can_log_in_and_reseeding_does_not_duplicate_users(): void
     {
         $this->seed(UserSeeder::class);

@@ -51,7 +51,7 @@ class InventoryController extends Controller
     {
         $data = $request->validate([
             'product_id' => 'required|integer|exists:products,id',
-            'quantity' => 'required|integer|min:1|max:9999999999',
+            'quantity' => 'required|numeric|min:0.001|max:999999999|decimal:0,3',
             'damage_reason' => 'required|in:BROKEN,SPOILED,EXPIRED,OPENED_USED,CONTAMINATED,TRANSPORT,STORAGE,OTHER',
             'notes' => 'nullable|string|max:2000',
         ]);
@@ -60,19 +60,24 @@ class InventoryController extends Controller
             $product = Product::query()->where('status', 'ACTIVE')
                 ->lockForUpdate()
                 ->findOrFail($data['product_id']);
+            if (! $product->is_weighted && (float) $data['quantity'] !== floor((float) $data['quantity'])) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Only weighted products can have a fractional damaged quantity.',
+                ]);
+            }
 
-            $previousHundredths = (int) round((float) $product->quantity * 100);
-            $damagedHundredths = (int) round((float) $data['quantity'] * 100);
-            if ($damagedHundredths > $previousHundredths) {
+            $previousThousandths = (int) round((float) $product->quantity * 1000);
+            $damagedThousandths = (int) round((float) $data['quantity'] * 1000);
+            if ($damagedThousandths > $previousThousandths) {
                 throw ValidationException::withMessages([
                     'quantity' => 'The damaged quantity cannot exceed the available stock.',
                 ]);
             }
 
-            $newHundredths = $previousHundredths - $damagedHundredths;
-            $previousQuantity = number_format($previousHundredths / 100, 2, '.', '');
-            $damagedQuantity = number_format($damagedHundredths / 100, 2, '.', '');
-            $newQuantity = number_format($newHundredths / 100, 2, '.', '');
+            $newThousandths = $previousThousandths - $damagedThousandths;
+            $previousQuantity = number_format($previousThousandths / 1000, 3, '.', '');
+            $damagedQuantity = number_format($damagedThousandths / 1000, 3, '.', '');
+            $newQuantity = number_format($newThousandths / 1000, 3, '.', '');
 
             $product->update(['quantity' => $newQuantity]);
             $movement = StockMovement::create([

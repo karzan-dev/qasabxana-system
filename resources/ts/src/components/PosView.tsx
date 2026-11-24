@@ -78,7 +78,12 @@ const isKilogramProduct = (product: Product) => {
     || product.unit_ar?.includes('كيلو') === true;
 };
 
-const isWeightedProduct = (product: Product) => product.is_weighted === true || isKilogramProduct(product);
+const unitsPerKg = (product: Product) => product.unit_code?.trim().toLowerCase() === 'g' ? 1000 : 1;
+
+/** Stock in the cart's unit: kg for weighted products, even when stocked in grams. */
+const cartStock = (product: Product) => product.quantity / unitsPerKg(product);
+
+const isWeightedProduct = (product: Product) => product.is_weighted === true || isKilogramProduct(product) || unitsPerKg(product) === 1000;
 
 const pricePerKgFor = (product: Product) => {
   if (product.price_per_kg && product.price_per_kg > 0) return product.price_per_kg;
@@ -101,9 +106,11 @@ const makeCartLine = (product: Product, quantity: number): CartLine => {
   };
 };
 
-const lineTotal = (line: CartLine) => line.weight
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+const lineTotal = (line: CartLine) => roundMoney(line.weight
   ? line.weight.net_weight * line.weight.price_per_kg
-  : line.quantity * line.product.selling_price;
+  : line.quantity * line.product.selling_price);
 
 export function PosView() {
   const { t, language, getLocalizedName, formatCurrency, showToast, triggerRefresh, refreshTrigger, settings } = useApp();
@@ -273,21 +280,21 @@ export function PosView() {
     return () => { active = false; };
   }, [refreshTrigger, showToast, t]);
 
-  const subtotal = useMemo(() => cart.reduce((sum, line) => sum + lineTotal(line), 0), [cart]);
+  const subtotal = useMemo(() => roundMoney(cart.reduce((sum, line) => sum + lineTotal(line), 0)), [cart]);
   const discountAmount = Math.min(subtotal, Math.max(0, Number(discount) || 0));
-  const total = Math.max(0, subtotal - discountAmount);
+  const total = Math.max(0, roundMoney(subtotal - discountAmount));
   const cashReceivedAmount = Number(cashReceived);
   const changeAmount = Math.max(0, (Number.isFinite(cashReceivedAmount) ? cashReceivedAmount : 0) - total);
 
   const addToCart = (product: Product, quantity = 1) => {
-    const quantityToAdd = Math.min(quantity, product.quantity);
+    const quantityToAdd = Math.min(quantity, cartStock(product));
     if (quantityToAdd <= 0) return;
 
     saleIdempotencyKey.current = null;
     setCart(current => {
       const existing = current.find(line => line.product.id === product.id);
       if (existing) {
-        const nextQuantity = Math.min(product.quantity, existing.quantity + quantityToAdd);
+        const nextQuantity = Math.min(cartStock(product), existing.quantity + quantityToAdd);
         if (nextQuantity === existing.quantity) return current;
         return current.map(line => line.product.id === product.id
           ? makeCartLine(product, nextQuantity)
@@ -304,7 +311,7 @@ export function PosView() {
     saleIdempotencyKey.current = null;
     setCart(current => current.map(line => {
       if (line.product.id !== productId) return line;
-      const quantity = Math.min(netWeight, line.product.quantity);
+      const quantity = Math.min(netWeight, cartStock(line.product));
       return {
         ...line,
         quantity,
@@ -345,14 +352,10 @@ export function PosView() {
     setCart(current => current.flatMap(line => {
       if (line.product.id !== productId) return [line];
       if (nextQuantity <= 0) return [];
-      const quantity = Math.min(nextQuantity, line.product.quantity);
-      return [{
-        ...line,
-        quantity,
-        weight: line.weight
-          ? { ...line.weight, net_weight: quantity, scale_source: 'manual' }
-          : undefined,
-      }];
+      const quantity = Math.min(nextQuantity, cartStock(line.product));
+      return [line.weight
+        ? { ...line, quantity, weight: { ...line.weight, net_weight: quantity, scale_source: 'manual' as const } }
+        : { ...line, quantity }];
     }));
   };
 
@@ -452,7 +455,7 @@ export function PosView() {
           )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">{paginatedProducts.map(product => {
             const cartQuantity = cart.find(line => line.product.id === product.id)?.quantity ?? 0;
-            const remainingQuantity = Math.max(0, product.quantity - cartQuantity);
+            const remainingQuantity = Math.max(0, Math.round((product.quantity - cartQuantity * unitsPerKg(product)) * 1000) / 1000);
             const unitName = getLocalizedName({
               name_ku: product.unit_ku ?? '',
               name_en: product.unit_en ?? '',

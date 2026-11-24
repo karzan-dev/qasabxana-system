@@ -105,7 +105,7 @@ class DatabaseSeeder extends Seeder
             unset($p['name_en'], $p['name_ar']);
             DB::table('products')->updateOrInsert(
                 ['id' => $p['id']],
-                [...$p, 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()],
+                [...$p, 'sku' => 'SKU-'.$p['id'], 'status' => 'ACTIVE', 'created_at' => now(), 'updated_at' => now()],
             );
         }
 

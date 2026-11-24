@@ -229,6 +229,17 @@ export interface AppSettings {
   scale_mode?: string;
   scale_port?: string;
   scale_baud_rate?: string;
+  scale_label_enabled?: string;
+  scale_label_prefixes?: string;
+  scale_label_plu_length?: string;
+  scale_label_value_length?: string;
+  scale_label_value_type?: string;
+  scale_label_value_decimals?: string;
+  scale_unitless_unit?: string;
+  scale_data_bits?: string;
+  scale_parity?: string;
+  scale_stop_bits?: string;
+  scale_hardware_checklist?: string;
   weight_decimals?: string;
   receipt_width?: string;
 }

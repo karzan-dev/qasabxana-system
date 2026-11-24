@@ -180,7 +180,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, items, onClose
                           <div className="text-[9px] text-rose-700">
                             {t('netWeight')}: {Number(item.net_weight).toFixed(3)} {item.weight_unit || 'kg'}
                             {item.price_per_kg !== undefined && item.price_per_kg !== null && ` · ${formatCurrency(Number(item.price_per_kg))}/kg`}
-                            {item.scale_source && ` · ${item.scale_source === 'web-serial' ? t('useWebSerial') : t('manualWeight')}`}
+                            {item.scale_source && ` · ${t(item.scale_source === 'label' ? 'scaleSourceLabel' : item.scale_source === 'web-serial' ? 'useWebSerial' : 'manualWeight')}`}
                           </div>
                         )}
                       </td>

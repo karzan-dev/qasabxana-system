@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import JsBarcode from 'jsbarcode';
 import { Package, Plus, Minus, Search, Pencil, Trash2, X, Download, Upload, Barcode, Camera, RefreshCw, Printer } from 'lucide-react';
-import { apiRequest, jsonBody } from '../api';
+import { apiFetch, apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
 import type { Category, Product, Unit } from '../types';
 import { ConfirmModal } from './ConfirmModal';
@@ -562,7 +562,7 @@ export function ProductsView() {
       triggerRefresh();
       await loadData();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : t('error'), 'error');
+      showToast(t(error instanceof Error ? error.message : 'error'), 'error');
     } finally {
       setSaving(false);
     }
@@ -684,6 +684,17 @@ export function ProductsView() {
     const stamp = new Date().toISOString().slice(0, 10);
     downloadTextFile(`products-${stamp}.csv`, lines.join('\n'));
     showToast(t('saved'), 'success');
+  };
+
+  const exportScaleCsv = async () => {
+    try {
+      const response = await apiFetch('/api/products/scale-csv');
+      if (!response.ok) throw new Error('error');
+      // Response.text() strips the BOM. The shared CSV helper restores it.
+      downloadTextFile('scale-products.csv', await response.text());
+    } catch {
+      showToast(t('error'), 'error');
+    }
   };
 
   /* ---------------------------- Import CSV ------------------------------ */
@@ -869,6 +880,10 @@ export function ProductsView() {
           >
             <Download className="size-4" />
             <span>CSV</span>
+          </button>
+          <button type="button" onClick={() => void exportScaleCsv()}
+            className="flex shrink-0 items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs font-bold dark:border-slate-700">
+            <Download className="size-4" /> {t('scaleCsv')}
           </button>
 
           {/* Import CSV */}
@@ -1187,9 +1202,10 @@ export function ProductsView() {
                       current ? { ...current, scale_product_code: event.target.value } : current,
                     )
                   }
-                  placeholder="PLU-001"
+                  placeholder="PLU001"
                   className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
+                <span className="mt-1 block font-normal">{t('scalePluHelp')}</span>
               </label>
 
               {field('purchase_price', t('purchasePrice'), 'number', true, t('purchasePrice'))}

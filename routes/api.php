@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\PurchaseController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReturnController;
+use App\Http\Controllers\Api\ScaleLabelController;
 use App\Http\Controllers\Api\SettingController;
 use App\Http\Controllers\Api\SupplierController;
 use App\Http\Controllers\Api\UnitController;
@@ -62,6 +63,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         ->middleware('permission:dashboard.view');
 
     Route::get('/products', [ProductController::class, 'index'])->middleware('permission:products.view');
+    Route::get('/products/scale-csv', [ProductController::class, 'scaleCsv'])->middleware('permission:products.view');
     Route::get('/products/{id}', [ProductController::class, 'show'])->middleware('permission:products.view');
     Route::get('/products/barcode/{barcode}', [ProductController::class, 'findByBarcode'])->middleware('permission:products.view');
     Route::post('/products', [ProductController::class, 'store'])->middleware('permission:products.manage');
@@ -140,6 +142,12 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
 
     Route::get('/settings', [SettingController::class, 'index'])->middleware('permission:settings.view');
     Route::post('/settings', [SettingController::class, 'update'])->middleware('permission:settings.manage');
+    Route::middleware('permission:settings.manage')->prefix('settings/scale')->group(function () {
+        Route::get('/', [ScaleLabelController::class, 'index']);
+        Route::post('/learn', [ScaleLabelController::class, 'learn']);
+        Route::post('/preview', [ScaleLabelController::class, 'preview']);
+        Route::post('/checklist', [ScaleLabelController::class, 'checklist']);
+    });
     Route::get('/backup', [BackupController::class, 'download']);
 
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->middleware('permission:activity_logs.view');

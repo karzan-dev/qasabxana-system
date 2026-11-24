@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Scale, Plug, PlugZap, CircleCheck, CircleAlert } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { createScaleStream, type ScaleFrame, type UnitlessWeight } from '../scale/serial';
 
 type SerialPortLike = {
-  open(options: { baudRate: number }): Promise<void>;
+  open(options: { baudRate: number; dataBits: 7 | 8; parity: 'none' | 'even' | 'odd'; stopBits: 1 | 2 }): Promise<void>;
   close(): Promise<void>;
   readable: ReadableStream<Uint8Array> | null;
 };
@@ -14,60 +15,41 @@ type SerialLike = {
 
 type ScalePanelProps = {
   baudRate: number;
+  dataBits: 7 | 8;
+  parity: 'none' | 'even' | 'odd';
+  stopBits: 1 | 2;
+  unitless: UnitlessWeight;
   onWeight: (weightKg: number, source: string) => void;
 };
 
-/** Parses common digital-scale frames such as `ST,GS,+  0.500 kg` or `0250 g`. */
-export function parseScaleLine(line: string): { kg: number } | null {
-  const text = line.replace(/\s+/g, ' ').trim();
-  if (!text) return null;
-
-  const withUnit = text.match(/([+-]?\d+(?:[.,]\d+)?)\s*(kg|kgl|gm|gr|g)\b/i);
-  if (withUnit?.[1] && withUnit[2]) {
-    const value = Number.parseFloat(withUnit[1].replace(',', '.'));
-    if (!Number.isFinite(value)) return null;
-    const unit = withUnit[2].toLowerCase();
-    return { kg: unit.startsWith('kg') ? value : value / 1000 };
-  }
-
-  const plain = text.match(/^([+-]?\d+(?:[.,]\d+)?)$/);
-  if (plain?.[1]) {
-    const value = Number.parseFloat(plain[1].replace(',', '.'));
-    return Number.isFinite(value) ? { kg: value / 1000 } : null;
-  }
-
-  return null;
-}
-
-export function ScalePanel({ baudRate, onWeight }: ScalePanelProps) {
+export function ScalePanel({ baudRate, dataBits, parity, stopBits, unitless, onWeight }: ScalePanelProps) {
   const { t } = useApp();
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [reading, setReading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const portRef = useRef<SerialPortLike | null>(null);
+  const [frames, setFrames] = useState<ScaleFrame[]>([]);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const cancellation = useRef<Promise<void> | undefined>(undefined);
   const activeRef = useRef(false);
-  const lastReadingRef = useRef<number | null>(null);
-  const stableCountRef = useRef(0);
+  const mounted = useRef(false);
+  const latestWeight = useRef(onWeight);
 
-  const stop = async () => {
+  useLayoutEffect(() => { latestWeight.current = onWeight; }, [onWeight]);
+
+  const stop = () => {
     activeRef.current = false;
-    const port = portRef.current;
-    portRef.current = null;
-    setConnected(false);
-    setConnecting(false);
-    if (port) {
-      try {
-        await port.close();
-      } catch {
-        // Port may already be closed by the browser.
-      }
-    }
+    setConnecting(true);
+    cancellation.current = readerRef.current?.cancel().catch(() => undefined);
   };
 
-  useEffect(() => () => {
-    activeRef.current = false;
-    void portRef.current?.close().catch(() => undefined);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      activeRef.current = false;
+      cancellation.current ??= readerRef.current?.cancel().catch(() => undefined);
+    };
   }, []);
 
   const connect = async () => {
@@ -79,49 +61,49 @@ export function ScalePanel({ baudRate, onWeight }: ScalePanelProps) {
 
     setConnecting(true);
     setError(null);
+    setReading(null);
+    setFrames([]);
+    let port: SerialPortLike | undefined;
+    let opened = false;
     try {
-      const port = await serial.requestPort();
-      await port.open({ baudRate });
-      portRef.current = port;
-      activeRef.current = true;
-      setConnected(true);
-
+      port = await serial.requestPort();
+      if (!mounted.current) return;
+      await port.open({ baudRate, dataBits, parity, stopBits });
+      opened = true;
+      if (!mounted.current) return;
       const reader = port.readable?.getReader();
       if (!reader) throw new Error(t('scaleError'));
+      readerRef.current = reader;
+      activeRef.current = true;
+      setConnected(true);
+      setConnecting(false);
       const decoder = new TextDecoder();
-      let buffer = '';
+      const parseChunk = createScaleStream(unitless);
 
       while (activeRef.current) {
         const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          const parsed = parseScaleLine(line);
-          if (!parsed || parsed.kg <= 0) continue;
-          const kg = Math.round(parsed.kg * 1000) / 1000;
-          setReading(kg);
-
-          const previous = lastReadingRef.current;
-          stableCountRef.current = previous !== null && Math.abs(previous - kg) < 0.0005
-            ? stableCountRef.current + 1
-            : 0;
-          lastReadingRef.current = kg;
-
-          if (stableCountRef.current >= 1) {
-            stableCountRef.current = 0;
-            onWeight(kg, 'web-serial');
-          }
+        if (!activeRef.current) break;
+        if (done) throw new Error(t('scaleDisconnected'));
+        const received = parseChunk(decoder.decode(value, { stream: true }));
+        if (received.length) setFrames(current => [...current, ...received].slice(-12));
+        for (const frame of received) {
+          if (frame.status === 'stable' || frame.status === 'zero') setReading(frame.kg ?? null);
+          if (frame.accepted && frame.kg !== undefined) latestWeight.current(frame.kg, 'web-serial');
         }
       }
-      reader.releaseLock();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('scaleError'));
-      await stop();
+      if (mounted.current) setError(caught instanceof Error ? caught.message : t('scaleError'));
     } finally {
-      setConnecting(false);
+      activeRef.current = false;
+      await cancellation.current;
+      cancellation.current = undefined;
+      readerRef.current?.releaseLock();
+      readerRef.current = null;
+      if (opened) await port?.close().catch(() => undefined);
+      if (mounted.current) {
+        setConnected(false);
+        setConnecting(false);
+      }
     }
   };
 
@@ -132,7 +114,8 @@ export function ScalePanel({ baudRate, onWeight }: ScalePanelProps) {
       {connected ? (
         <button
           type="button"
-          onClick={() => void stop()}
+          disabled={connecting}
+          onClick={stop}
           className="flex items-center gap-1 rounded-md border border-rose-300 px-2 py-1 font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/40"
         >
           <PlugZap className="size-3.5" /> {t('disconnectScale')}
@@ -156,6 +139,14 @@ export function ScalePanel({ baudRate, onWeight }: ScalePanelProps) {
         <span className="flex items-center gap-1 font-normal text-rose-600 dark:text-rose-300">
           <CircleAlert className="size-3.5" /> {error}
         </span>
+      )}
+      {frames.length > 0 && (
+        <details className="basis-full">
+          <summary>{t('scaleDiagnostics')}</summary>
+          <ul className="mt-1 max-h-36 overflow-auto">
+            {frames.map((frame, index) => <li key={index}><code dir="ltr">{frame.raw}</code> · {t(`scaleFrame_${frame.status}`)}{frame.kg !== undefined && ` · ${frame.kg.toFixed(3)} kg`}</li>)}
+          </ul>
+        </details>
       )}
     </div>
   );

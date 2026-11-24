@@ -1,6 +1,7 @@
 ﻿import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { apiFetch } from '../api';
 import type { AppSettings, ExpiryAlert, ToastItem, User, UserRole } from '../types';
+import { scaleTranslation } from '../scale/translations';
 
 export type Language = 'ku' | 'en' | 'ar';
 export type NavTab =
@@ -109,6 +110,16 @@ const SETTINGS_DEFAULTS: AppSettings = {
   expiry_alerts_bell: '1',
   expiry_alerts_dashboard: '1',
   scale_enabled: '0',
+  scale_label_enabled: '0',
+  scale_label_prefixes: '20',
+  scale_label_plu_length: '5',
+  scale_label_value_length: '5',
+  scale_label_value_type: 'weight',
+  scale_label_value_decimals: '3',
+  scale_unitless_unit: 'kg',
+  scale_data_bits: '8',
+  scale_parity: 'none',
+  scale_stop_bits: '1',
   scale_mode: 'manual',
   scale_port: '',
   scale_baud_rate: '9600',
@@ -1606,6 +1617,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const t = (key: string) => CONTEXTUAL_TRANSLATIONS[language][key]
     ?? UI_TRANSLATIONS[language][key]
     ?? TRANSLATIONS[language][key]
+    ?? scaleTranslation(language, key)
     ?? key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, first => first.toUpperCase());
 
   const formatCurrency = (amount: number | string | null | undefined) => {

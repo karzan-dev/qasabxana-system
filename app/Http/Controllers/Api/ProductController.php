@@ -5,12 +5,17 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Unit;
 use App\Services\ProductExpiryService;
+use App\Services\ScaleLabel;
+use App\Services\ScaleProducts;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
 class ProductController extends Controller
@@ -82,17 +87,26 @@ class ProductController extends Controller
 
         $this->applyWeightedDefaults($validated);
 
-        if ($request->hasFile('image')) {
-            $validated['image'] = $request->file('image')->store('products', 'public');
+        $image = null;
+        try {
+            $product = DB::transaction(function () use ($validated, $request, &$image) {
+                $this->validatePlu($validated['scale_product_code'] ?? null);
+                if ($request->hasFile('image')) {
+                    $image = $request->file('image')->store('products', 'public');
+                    $validated['image'] = $image;
+                }
+                $validated['sku'] = 'SKU-TEMP-'.Str::uuid();
+                $product = Product::create($validated);
+                $product->update(['sku' => 'SKU-'.$product->id]);
+
+                return $product;
+            });
+        } catch (Throwable $error) {
+            if ($image) {
+                Storage::disk('public')->delete($image);
+            }
+            throw $error;
         }
-
-        $product = DB::transaction(function () use ($validated) {
-            $validated['sku'] = 'SKU-TEMP-'.Str::uuid();
-            $product = Product::create($validated);
-            $product->update(['sku' => 'SKU-'.$product->id]);
-
-            return $product;
-        });
 
         ActivityLog::log('CREATE', 'PRODUCT', $product->id, "Added product {$product->name_ku} ({$product->barcode})");
 
@@ -153,7 +167,13 @@ class ProductController extends Controller
         }
 
         try {
-            DB::transaction(fn () => $product->update($validated));
+            DB::transaction(function () use ($product, $validated) {
+                if ($product->status === 'ACTIVE' && array_key_exists('scale_product_code', $validated)
+                    && ScaleLabel::normalizePlu($validated['scale_product_code']) !== ScaleLabel::normalizePlu($product->scale_product_code)) {
+                    $this->validatePlu($validated['scale_product_code'], $product->id);
+                }
+                $product->update($validated);
+            });
         } catch (Throwable $error) {
             if ($newImage) {
                 Storage::disk('public')->delete($newImage);
@@ -186,24 +206,86 @@ class ProductController extends Controller
         return response()->json(['success' => true, 'message' => 'Product removed']);
     }
 
-    public function findByBarcode($barcode)
+    public function findByBarcode(Request $request, string $barcode)
     {
-        $product = Product::with(['category', 'unit'])
-            ->where(function ($query) use ($barcode): void {
-                $query->where('barcode', $barcode)
-                    ->orWhere('scale_product_code', $barcode);
-            })
-            ->where('status', 'ACTIVE')
-            ->first();
+        $active = Product::with(['category', 'unit'])->where('status', 'ACTIVE');
+        $product = (clone $active)->where('barcode', $barcode)->first();
+        if ($product) {
+            return response()->json(['success' => true, 'data' => $this->payload($product)]);
+        }
 
+        $settings = $request->boolean('scale_label')
+            ? Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))->pluck('key_value', 'key_name')->all() + ScaleLabel::DEFAULTS
+            : ScaleLabel::DEFAULTS;
+        if ($settings['scale_label_enabled'] === '1') {
+            try {
+                $label = ScaleLabel::parse($barcode, ScaleLabel::layout($settings));
+                $product = ScaleProducts::resolve($label['plu']);
+                $weight = ScaleProducts::weight($label, $product);
+            } catch (InvalidArgumentException $error) {
+                // Keep direct short PLU lookups available alongside the label scanner.
+                if ($error->getMessage() === 'scaleUnsupported' && strlen($barcode) <= 9) {
+                    $product = (clone $active)->where('scale_product_code', $barcode)->first();
+                    if ($product) {
+                        return response()->json(['success' => true, 'data' => $this->payload($product)]);
+                    }
+                }
+
+                return response()->json(['success' => false, 'message' => $error->getMessage()], 422);
+            }
+
+            return response()->json(['success' => true, 'data' => [
+                ...$this->payload($product), 'scale_label' => ['weight_kg' => $weight],
+            ]]);
+        }
+
+        $product = $active->where('scale_product_code', $barcode)->first();
         if (! $product) {
-            return response()->json(['success' => false, 'message' => 'Product not found'], 404);
+            return response()->json([
+                'success' => false,
+                'message' => $request->boolean('scale_label') ? 'productNotFound' : 'Product not found',
+            ], 404);
         }
 
         return response()->json([
             'success' => true,
             'data' => $this->payload($product),
         ]);
+    }
+
+    public function scaleCsv(): StreamedResponse
+    {
+        $layout = ScaleLabel::layout(Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))->pluck('key_value', 'key_name')->all());
+
+        return response()->streamDownload(function () use ($layout) {
+            $output = fopen('php://output', 'wb');
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['PLU', 'Name', 'Price per kg', 'Barcode prefix'], ',', '"', '');
+            Product::with('unit')->where('status', 'ACTIVE')->whereNotNull('scale_product_code')->chunkById(250, function ($products) use ($output, $layout) {
+                foreach ($products as $product) {
+                    $plu = ScaleLabel::normalizePlu($product->scale_product_code);
+                    if ($plu === null || ! ScaleProducts::isWeighted($product)) {
+                        continue;
+                    }
+                    $name = $product->name_ku;
+                    if (preg_match('/^\s*[=+\-@]|^[\t\r\n]/', $name)) {
+                        $name = "'".$name;
+                    }
+                    $price = (float) $product->price_per_kg ?: (float) $product->selling_price * ($product->unit?->short_code === 'g' ? 1000 : 1);
+                    fputcsv($output, [$plu, $name, number_format($price, 2, '.', ''), $layout['prefixes'][0]], ',', '"', '');
+                }
+            });
+            fclose($output);
+        }, 'scale-products.csv', ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function validatePlu(?string $code, ?int $except = null): void
+    {
+        if (ScaleLabel::normalizePlu($code) !== null) {
+            // Serialize PLU changes without imposing a unique constraint on existing duplicates.
+            Setting::where('key_name', 'scale_label_enabled')->lockForUpdate()->first();
+            ScaleProducts::unique($code, $except);
+        }
     }
 
     /** Numbers stay numbers: model decimal casts would serialize them as strings. */

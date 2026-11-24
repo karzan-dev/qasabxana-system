@@ -4,6 +4,7 @@ import { apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
 import type { AppSettings } from '../types';
 import { NumericInput } from './NumericInput';
+import { ScaleConfigurationFields, ScaleSettingsTools } from './ScaleSettings';
 
 const SETTING_FIELDS: Array<{ key: keyof AppSettings; label: string; type?: string; placeholder?: string }> = [
   { key: 'store_name', label: 'storeName', placeholder: 'My Butcher Shop' },
@@ -18,7 +19,9 @@ const SETTING_FIELDS: Array<{ key: keyof AppSettings; label: string; type?: stri
 ];
 
 export function SettingsView() {
-  const { t, settings, updateSettings, showToast, theme, setTheme, language, setLanguage } = useApp();
+  const { t, settings, updateSettings, showToast, theme, setTheme, language, setLanguage, user } = useApp();
+  const admin = user?.role === 'ADMIN';
+  const canManageScale = admin || user?.permissions?.includes('settings.manage');
   const [form, setForm] = useState<AppSettings>(settings);
   const [saving, setSaving] = useState(false);
 
@@ -30,7 +33,7 @@ export function SettingsView() {
       const result = await apiRequest<AppSettings>('/api/settings', { method: 'POST', body: jsonBody(form) });
       updateSettings(result.data);
       showToast(t('saved'), 'success');
-    } catch (error) { showToast(error instanceof Error ? error.message : t('error'), 'error'); }
+    } catch (error) { showToast(t(error instanceof Error ? error.message : 'error'), 'error'); }
     finally { setSaving(false); }
   };
 
@@ -105,9 +108,11 @@ export function SettingsView() {
           <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('weightDecimals')}<select value={form.weight_decimals ?? '3'} onChange={event => setForm(current => ({ ...current, weight_decimals: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="2">2</option><option value="3">3</option></select></label>
           <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t('receiptWidth')}<select value={form.receipt_width ?? '80mm'} onChange={event => setForm(current => ({ ...current, receipt_width: event.target.value }))} className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white"><option value="58mm">58mm</option><option value="80mm">80mm</option><option value="a4">A4</option></select></label>
           <p className="text-[11px] leading-relaxed text-slate-500 sm:col-span-2 dark:text-slate-400">{t('scalePortNote')} {t('scaleBrowserNote')}</p>
+          {canManageScale && <ScaleConfigurationFields form={form} setField={(key, value) => setForm(current => ({ ...current, [key]: value }))} />}
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 dark:border-slate-800"><div className="flex items-center gap-3 text-xs"><label className="flex items-center gap-2">{t('theme')}<select value={theme} onChange={event => setTheme(event.target.value as 'light' | 'dark')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="light">{t('light')}</option><option value="dark">{t('dark')}</option></select></label><label className="flex items-center gap-2">{t('language')}<select value={language} onChange={event => setLanguage(event.target.value as 'ku' | 'en' | 'ar')} className="rounded-md border border-slate-300 bg-white px-2 py-1.5 dark:border-slate-700 dark:bg-slate-950"><option value="ku">کوردی</option><option value="en">English</option><option value="ar">العربية</option></select></label></div><button disabled={saving} className="flex items-center gap-2 rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-60"><Save className="size-4" />{saving ? t('loading') : t('save')}</button></div>
       </form>
+      {canManageScale && <ScaleSettingsTools admin={admin} />}
     </section>
   );
 }

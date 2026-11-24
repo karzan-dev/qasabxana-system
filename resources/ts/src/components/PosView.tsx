@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Barcode, DollarSign, Minus, Plus, Scale, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
@@ -7,17 +7,19 @@ import { ReceiptModal } from './ReceiptModal';
 import { NumericInput } from './NumericInput';
 import { BarcodeScannerButton } from './BarcodeScannerButton';
 import { ScalePanel } from './ScalePanel';
+import { ConfirmModal } from './ConfirmModal';
 
 type WeightInfo = {
   gross_weight?: number;
   tare_weight?: number;
   net_weight: number;
   weight_unit: 'kg';
-  scale_source: 'manual' | 'web-serial';
+  scale_source: 'manual' | 'web-serial' | 'label';
   price_per_kg: number;
 };
 
-type CartLine = { product: Product; quantity: number; weight?: WeightInfo };
+type CartLine = { product: Product; quantity: number; weight?: WeightInfo; labelCodes?: string[] };
+type ScannedLabel = { product: Product; code: string; kg: number };
 type CreditCustomerDetails = { name: string; phone: string; address: string };
 type SaleResult = { sale: Sale; items: Array<Partial<SaleItem> & Pick<SaleItem, 'product_id' | 'quantity' | 'unit_price' | 'total'>> };
 
@@ -118,8 +120,11 @@ export function PosView() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [todayNetSales, setTodayNetSales] = useState<number | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const currentCart = useRef(cart);
+  useLayoutEffect(() => { currentCart.current = cart; }, [cart]);
   const [weightInputs, setWeightInputs] = useState<Record<number, string>>({});
   const [scaleTargetId, setScaleTargetId] = useState<number | null>(null);
+  const [repeatLabel, setRepeatLabel] = useState<ScannedLabel | null>(null);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CREDIT'>('CASH');
@@ -134,6 +139,7 @@ export function PosView() {
   const [receipt, setReceipt] = useState<SaleResult | null>(null);
   const [cartLoaded, setCartLoaded] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const scanPending = useRef(false);
   const saleIdempotencyKey = useRef<string | null>(null);
   const creditStorageErrorShown = useRef(false);
 
@@ -259,8 +265,9 @@ export function PosView() {
         setCart(current => current.map(line => {
           const currentProduct = productResult.data.find(product => product.id === line.product.id);
           if (!currentProduct) return line;
-          return isWeightedProduct(currentProduct) && !line.weight
-            ? makeCartLine(currentProduct, line.quantity)
+          if (isWeightedProduct(currentProduct) && !line.weight) return makeCartLine(currentProduct, line.quantity);
+          return line.weight
+            ? { ...line, product: currentProduct, weight: { ...line.weight, price_per_kg: pricePerKgFor(currentProduct) } }
             : { ...line, product: currentProduct };
         }));
       })
@@ -286,19 +293,21 @@ export function PosView() {
   const cashReceivedAmount = Number(cashReceived);
   const changeAmount = Math.max(0, (Number.isFinite(cashReceivedAmount) ? cashReceivedAmount : 0) - total);
 
+  const stockLimit = (product: Product) => settings.allow_negative_stock === '1' ? Infinity : cartStock(product);
+
   const addToCart = (product: Product, quantity = 1) => {
-    const quantityToAdd = Math.min(quantity, cartStock(product));
+    const quantityToAdd = Math.min(quantity, stockLimit(product));
     if (quantityToAdd <= 0) return;
 
     saleIdempotencyKey.current = null;
     setCart(current => {
       const existing = current.find(line => line.product.id === product.id);
       if (existing) {
-        const nextQuantity = Math.min(cartStock(product), existing.quantity + quantityToAdd);
+        const nextQuantity = Math.min(stockLimit(product), existing.quantity + quantityToAdd);
         if (nextQuantity === existing.quantity) return current;
-        return current.map(line => line.product.id === product.id
-          ? makeCartLine(product, nextQuantity)
-          : line);
+        const next = makeCartLine(product, nextQuantity);
+        if (existing.weight?.scale_source === 'label' && next.weight) next.weight.scale_source = 'label';
+        return current.map(line => line.product.id === product.id ? { ...line, ...next } : line);
       }
       return [...current, makeCartLine(product, quantityToAdd)];
     });
@@ -307,11 +316,17 @@ export function PosView() {
   const applyWeight = (productId: number, weightKg: number, source: WeightInfo['scale_source'], syncInput = true) => {
     const netWeight = Math.round(weightKg * 1000) / 1000;
     if (!Number.isFinite(netWeight) || netWeight <= 0) return;
+    const target = cart.find(line => line.product.id === productId);
+    if (!target) return;
+    if (netWeight > stockLimit(target.product) && source !== 'manual') {
+      showToast(t('scaleStockExceeded'), 'warning');
+      return;
+    }
 
     saleIdempotencyKey.current = null;
     setCart(current => current.map(line => {
       if (line.product.id !== productId) return line;
-      const quantity = Math.min(netWeight, cartStock(line.product));
+      const quantity = Math.min(netWeight, stockLimit(line.product));
       return {
         ...line,
         quantity,
@@ -323,11 +338,13 @@ export function PosView() {
         },
       };
     }));
-    if (syncInput) setWeightInputs(current => ({ ...current, [productId]: String(netWeight) }));
+    if (syncInput) setWeightInputs(current => ({ ...current, [productId]: String(Math.min(netWeight, stockLimit(target.product))) }));
   };
 
   const handleScaleWeight = (weightKg: number, source: string) => {
-    const target = scaleTargetId ?? cart.find(line => isWeightedProduct(line.product))?.product.id;
+    const weighted = cart.filter(line => isWeightedProduct(line.product));
+    const target = weighted.find(line => line.product.id === scaleTargetId)?.product.id
+      ?? (weighted.length === 1 ? weighted[0]?.product.id : undefined);
     if (!target) {
       showToast(t('selectWeightedItem'), 'warning');
       return;
@@ -335,15 +352,48 @@ export function PosView() {
     applyWeight(target, weightKg, source === 'web-serial' ? 'web-serial' : 'manual');
   };
 
+  const addLabel = ({ product, code, kg }: ScannedLabel) => {
+    const existing = currentCart.current.find(line => line.product.id === product.id);
+    const quantity = Math.round(((existing?.quantity ?? 0) + kg) * 1000) / 1000;
+    if (quantity > stockLimit(product)) {
+      showToast(t('scaleStockExceeded'), 'warning');
+      return;
+    }
+
+    saleIdempotencyKey.current = null;
+    setCart(current => {
+      const previous = current.find(line => line.product.id === product.id);
+      const totalKg = Math.round(((previous?.quantity ?? 0) + kg) * 1000) / 1000;
+      if (totalKg > stockLimit(product)) return current;
+      const line: CartLine = {
+        product, quantity: totalKg, labelCodes: [...(previous?.labelCodes ?? []), code],
+        weight: { net_weight: totalKg, weight_unit: 'kg', scale_source: 'label', price_per_kg: pricePerKgFor(product) },
+      };
+      return previous ? current.map(item => item.product.id === product.id ? line : item) : [...current, line];
+    });
+    setWeightInputs(current => ({ ...current, [product.id]: String(quantity) }));
+    setSearch('');
+  };
+
   const findBarcode = async (barcodeInput = search) => {
     const barcode = barcodeInput.trim();
-    if (!barcode) return;
+    if (!barcode || scanPending.current || repeatLabel) return;
+    scanPending.current = true;
     try {
-      const result = await apiRequest<Product>(`/api/products/barcode/${encodeURIComponent(barcode)}`);
-      addToCart(result.data);
+      const result = await apiRequest<Product & { scale_label?: { weight_kg: number } }>(`/api/products/barcode/${encodeURIComponent(barcode)}?scale_label=1`);
+      const { scale_label: label, ...product } = result.data;
+      if (label) {
+        const scanned = { product, code: barcode, kg: label.weight_kg };
+        if (currentCart.current.some(line => line.labelCodes?.includes(barcode))) setRepeatLabel(scanned);
+        else addLabel(scanned);
+        return;
+      }
+      addToCart(product);
       setSearch('');
-    } catch {
-      showToast(t('productNotFound'), 'warning');
+    } catch (error) {
+      showToast(t(error instanceof Error ? error.message : 'productNotFound'), 'warning');
+    } finally {
+      scanPending.current = false;
     }
   };
 
@@ -352,7 +402,7 @@ export function PosView() {
     setCart(current => current.flatMap(line => {
       if (line.product.id !== productId) return [line];
       if (nextQuantity <= 0) return [];
-      const quantity = Math.min(nextQuantity, cartStock(line.product));
+      const quantity = Math.min(nextQuantity, stockLimit(line.product));
       return [line.weight
         ? { ...line, quantity, weight: { ...line.weight, net_weight: quantity, scale_source: 'manual' as const } }
         : { ...line, quantity }];
@@ -451,7 +501,14 @@ export function PosView() {
         <div className="space-y-3 xl:sticky xl:top-4 xl:self-start">
           <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter') void findBarcode(); }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
           {settings.scale_enabled === '1' && settings.scale_mode === 'web_serial' && (
-            <ScalePanel baudRate={Number(settings.scale_baud_rate) || 9600} onWeight={handleScaleWeight} />
+            <ScalePanel
+              baudRate={Number(settings.scale_baud_rate) || 9600}
+              dataBits={settings.scale_data_bits === '7' ? 7 : 8}
+              parity={settings.scale_parity === 'even' || settings.scale_parity === 'odd' ? settings.scale_parity : 'none'}
+              stopBits={settings.scale_stop_bits === '2' ? 2 : 1}
+              unitless={settings.scale_unitless_unit === 'g' ? 'g' : 'kg'}
+              onWeight={handleScaleWeight}
+            />
           )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">{paginatedProducts.map(product => {
             const cartQuantity = cart.find(line => line.product.id === product.id)?.quantity ?? 0;
@@ -462,7 +519,7 @@ export function PosView() {
               name_ar: product.unit_ar ?? '',
             });
 
-            return <button key={product.id} type="button" onClick={() => addToCart(product)} disabled={remainingQuantity <= 0} aria-label={`${t('addItem')}: ${getLocalizedName(product)}`} className="flex min-h-32 flex-col overflow-hidden rounded-md border sm:min-h-44 border-slate-200 bg-white text-start hover:border-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900">
+            return <button key={product.id} type="button" onClick={() => addToCart(product)} disabled={settings.allow_negative_stock !== '1' && remainingQuantity <= 0} aria-label={`${t('addItem')}: ${getLocalizedName(product)}`} className="flex min-h-32 flex-col overflow-hidden rounded-md border sm:min-h-44 border-slate-200 bg-white text-start hover:border-rose-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-900">
               {product.image && <img src={product.image} alt="" loading="lazy" className="h-24 w-full bg-slate-100 object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}
               <span className="line-clamp-2 px-3 pt-3 text-sm font-semibold text-slate-900 dark:text-white">{getLocalizedName(product)}</span>
               <span className="mt-2 px-3 text-center text-sm font-bold text-rose-800 dark:text-rose-300">{formatCurrency(isWeightedProduct(product) ? pricePerKgFor(product) : product.selling_price)}{isWeightedProduct(product) ? '/kg' : ''}</span>
@@ -507,7 +564,7 @@ export function PosView() {
                     </p>
                     {line.weight && (
                       <p className="mt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
-                        {t('scaleSource')}: {line.weight.scale_source === 'web-serial' ? t('useWebSerial') : t('manualWeight')}
+                        {t('scaleSource')}: {t(line.weight.scale_source === 'label' ? 'scaleSourceLabel' : line.weight.scale_source === 'web-serial' ? 'useWebSerial' : 'manualWeight')}
                         {line.weight.tare_weight !== undefined && ` · ${t('tareWeight')}: ${line.weight.tare_weight} kg`}
                       </p>
                     )}
@@ -581,6 +638,9 @@ export function PosView() {
         </aside>
       </div>
       {showCreditSaleForm && <div className="fixed inset-0 z-50 overflow-y-auto flex items-center-safe justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="credit-sale-title"><form onSubmit={event => { event.preventDefault(); void completeSale(creditCustomer); }} className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 id="credit-sale-title" className="text-base font-bold text-slate-900 dark:text-white">{t('customer')}</h2><button type="button" onClick={() => setShowCreditSaleForm(false)} aria-label={t('close')} className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">×</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="relative text-xs font-semibold text-slate-600 dark:text-slate-300"><label>{t('name')}<input autoFocus required maxLength={100} autoComplete="off" value={creditCustomer.name} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, name: event.target.value })); }} placeholder={t('name')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>{!creditCustomerId && matchingCreditCustomers.length > 0 && <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">{matchingCreditCustomers.map(customer => <button key={customer.id} type="button" onClick={() => { saleIdempotencyKey.current = null; setCreditCustomerId(String(customer.id)); setCreditCustomer({ name: customer.name, phone: customer.phone || '', address: customer.address || '' }); }} className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-start last:border-0 hover:bg-rose-50 dark:border-slate-800 dark:hover:bg-slate-800"><span className="font-semibold">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</span><span className="text-[10px] text-rose-600 dark:text-rose-300">{t('debt')}: {formatCurrency(customer.debt)}</span></button>)}</div>}</div><label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('phone')}<input required={!creditCustomerId} maxLength={30} value={creditCustomer.phone} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, phone: event.target.value })); }} placeholder={t('phone')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">{t('address')}<input required={!creditCustomerId} value={creditCustomer.address} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, address: event.target.value })); }} placeholder={t('address')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label></div><div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><div className="flex justify-between font-semibold"><span>{t('total')}</span><span>{formatCurrency(total)}</span></div><label className="flex flex-col items-center gap-1 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min="0" max={total} step="0.01" value={creditAmountPaid} onValueChange={value => { saleIdempotencyKey.current = null; setCreditAmountPaid(value); }} placeholder="0" className="w-36 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-center text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><div className="flex justify-between text-xs text-rose-700 dark:text-rose-300"><span>{t('debt')}</span><span>{formatCurrency(Math.max(0, total - (Number(creditAmountPaid) || 0)))}</span></div></div><div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800"><button type="button" onClick={() => setShowCreditSaleForm(false)} className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">{t('cancel')}</button><button type="submit" disabled={saving} className="rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('completeSale')}</button></div></form></div>}
+      <ConfirmModal isOpen={repeatLabel !== null} title={t('scaleRepeatLabel')} message={t('scaleRepeatLabelDetail')}
+        confirmLabel={t('addItem')} isDestructive={false} onCancel={() => setRepeatLabel(null)}
+        onConfirm={() => { if (repeatLabel) addLabel(repeatLabel); setRepeatLabel(null); }} />
       {receipt && <ReceiptModal sale={receipt.sale} items={receipt.items.map(item => ({
         id: item.id || 0, sale_id: receipt.sale.id, product_id: item.product_id, quantity: item.quantity,
         unit_price: item.unit_price, purchase_cost: item.purchase_cost || 0, discount: item.discount || 0,

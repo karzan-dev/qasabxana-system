@@ -510,7 +510,7 @@ export function ProductsView() {
         ...productForm,
         category_id: Number(productForm.category_id),
         unit_id: Number(productForm.unit_id),
-        is_weighted: productForm.is_weighted === '1',
+        is_weighted: productForm.is_weighted === '1' ? '1' : '0',
         purchase_price: Number(productForm.purchase_price),
         selling_price: Number(productForm.selling_price),
         price_per_kg: Number(productForm.price_per_kg || productForm.selling_price || 0),

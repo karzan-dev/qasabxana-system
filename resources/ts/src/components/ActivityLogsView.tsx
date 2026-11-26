@@ -43,10 +43,10 @@ export const ActivityLogsView: React.FC = () => {
     <div className="space-y-5">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div>
+      <div className="flex min-w-0 flex-col justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:gap-4 sm:p-5">
+        <div className="min-w-0">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
+            <ShieldCheck className="size-5 shrink-0 text-emerald-600" aria-hidden="true" />
             <span>{t('activityLogs')}</span>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
               {logs.length}
@@ -61,7 +61,6 @@ export const ActivityLogsView: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute inset-y-0 start-3 my-auto" />
           <input
             type="text"
-            autoFocus
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder={t('search')}
@@ -109,7 +108,7 @@ export const ActivityLogsView: React.FC = () => {
                     <td className="py-3 px-4 font-mono text-slate-500">
                       {t(l.entity.toLowerCase())} {l.entity_id ? `#${l.entity_id}` : ''}
                     </td>
-                    <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
+                    <td data-mobile-wide className="py-3 px-4 [overflow-wrap:anywhere] text-slate-600 dark:text-slate-300">
                       {l.description}
                     </td>
                   </tr>

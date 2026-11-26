@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Barcode, DollarSign, Minus, Plus, Scale, Search, ShoppingCart, Trash2 } from 'lucide-react';
 import { apiRequest, jsonBody } from '../api';
 import { useApp } from '../context/AppContext';
@@ -114,7 +115,7 @@ const lineTotal = (line: CartLine) => roundMoney(line.weight
   ? line.weight.net_weight * line.weight.price_per_kg
   : line.quantity * line.product.selling_price);
 
-export function PosView() {
+export function PosView({ mobileCheckoutHost }: { mobileCheckoutHost: HTMLDivElement | null }) {
   const { t, language, getLocalizedName, formatCurrency, showToast, triggerRefresh, refreshTrigger, settings } = useApp();
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -471,6 +472,22 @@ export function PosView() {
     }
   };
 
+  const beginCheckout = () => {
+    if (saving || !cart.length) return;
+    if (paymentMethod === 'CREDIT') {
+      setShowCreditSaleForm(true);
+      return;
+    }
+    if (paymentMethod === 'CASH') {
+      const receivedAmount = Number(cashReceived || total);
+      if (!Number.isFinite(receivedAmount) || receivedAmount < total) {
+        showToast(`${t('cashAmountBelowTotal')} (${formatCurrency(total)})`, 'error');
+        return;
+      }
+    }
+    void completeSale();
+  };
+
   const visibleProducts = products.filter(product => {
     const query = search.toLocaleLowerCase();
     return !query || product.barcode.toLocaleLowerCase().includes(query)
@@ -502,7 +519,20 @@ export function PosView() {
           </div>
         </div>
       </div>
-      {cart.length > 0 && <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ block: 'start' })} className="sticky top-0 z-20 flex min-h-11 w-full items-center justify-between gap-3 rounded-md bg-rose-700 px-4 py-3 text-sm font-bold text-white shadow-lg xl:hidden"><span className="flex items-center gap-2"><ShoppingCart className="size-4" />{t('cart')} ({cart.length})</span><span>{formatCurrency(total)}</span></button>}
+      {mobileCheckoutHost && createPortal(
+        <div className="mx-auto flex w-full max-w-7xl items-stretch gap-2 border-t border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
+          <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ block: 'start' })}
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-200 px-2 text-start text-xs dark:border-slate-700">
+            <ShoppingCart className="size-4 shrink-0 text-rose-700 dark:text-rose-300" aria-hidden="true" />
+            <span className="min-w-0 break-words leading-tight"><span className="block">{t('cart')} ({cart.length})</span><bdi className="font-bold">{formatCurrency(total)}</bdi></span>
+          </button>
+          <button type="button" disabled={saving || !cart.length} onClick={beginCheckout}
+            className="min-h-11 min-w-0 flex-1 rounded-lg bg-rose-700 px-2 py-1 text-center text-sm font-bold leading-snug text-white disabled:opacity-50">
+            {saving ? t('loading') : t('completeSale')}
+          </button>
+        </div>,
+        mobileCheckoutHost,
+      )}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:grid-cols-[minmax(0,1fr)_32rem]">
         <div id="pos-products" className="min-w-0 scroll-mt-14 space-y-3 xl:sticky xl:top-4 xl:self-start">
           <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter' && !event.repeat && !event.nativeEvent.isComposing) { event.preventDefault(); void findBarcode(event.currentTarget.value); } }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
@@ -627,21 +657,8 @@ export function PosView() {
               );
             })}
           </div>
-          <div className="border-t border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/30">
-            <button type="button" disabled={saving || cart.length === 0} onClick={() => {
-              if (paymentMethod === 'CREDIT') {
-                setShowCreditSaleForm(true);
-                return;
-              }
-              if (paymentMethod === 'CASH') {
-                const receivedAmount = Number(cashReceived || total);
-                if (!Number.isFinite(receivedAmount) || receivedAmount < total) {
-                  showToast(`${t('cashAmountBelowTotal')} (${formatCurrency(total)})`, 'error');
-                  return;
-                }
-              }
-              void completeSale();
-            }} className="w-full rounded-lg bg-rose-700 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-rose-900/15 transition hover:bg-rose-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">{saving ? t('loading') : t('completeSale')}</button>
+          <div className="hidden border-t border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-950/30 xl:block">
+            <button type="button" disabled={saving || cart.length === 0} onClick={beginCheckout} className="w-full rounded-lg bg-rose-700 px-5 py-4 text-base font-extrabold text-white shadow-lg shadow-rose-900/15 transition hover:bg-rose-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">{saving ? t('loading') : t('completeSale')}</button>
           </div>
         </aside>
       </div>

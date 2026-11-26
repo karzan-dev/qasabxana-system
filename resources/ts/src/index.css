@@ -545,6 +545,19 @@
     min-width: 2.75rem;
     min-height: 2.75rem;
   }
+
+  :is(main, [role="dialog"]) :where(button) {
+    min-height: 2.75rem;
+    max-width: 100%;
+  }
+
+  :is(main, [role="dialog"]) :where(button:has(> svg:only-child)) {
+    min-width: 2.75rem;
+  }
+
+  :is(main, [role="dialog"]) :where(button > svg) {
+    flex-shrink: 0;
+  }
 }
 
 /* Narrow displays use table cards, with titles assigned by tableCards.ts. */
@@ -625,6 +638,7 @@
 
   table.mobile-cards td[data-card="title"],
   table.mobile-cards td[data-card="actions"],
+  table.mobile-cards td[data-mobile-wide],
   table.mobile-cards td[colspan],
   table.mobile-cards td[data-label=""] {
     grid-column: 1 / -1;

@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { AppProvider, useApp, userCanAccessTab } from './context/AppContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -28,6 +28,7 @@ const ViewLoading: React.FC = () => <div className="p-8 text-center text-sm text
 
 const MainLayout: React.FC = () => {
   const { user, activeTab, setActiveTab, isFullScreen } = useApp();
+  const [mobileCheckoutHost, setMobileCheckoutHost] = useState<HTMLDivElement | null>(null);
   const visibleTab = user && !userCanAccessTab(user, activeTab)
     ? user.role === 'CASHIER' ? 'pos' : 'dashboard'
     : activeTab;
@@ -48,7 +49,7 @@ const MainLayout: React.FC = () => {
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2 sm:p-4">
           <Suspense fallback={<ViewLoading />}>
             {visibleTab === 'dashboard' && <DashboardView />}
-            {(visibleTab === 'pos' || visibleTab === 'cashier') && <PosView />}
+            {(visibleTab === 'pos' || visibleTab === 'cashier') && <PosView mobileCheckoutHost={mobileCheckoutHost} />}
             {visibleTab === 'products' && <ProductsView />}
             {visibleTab === 'categories' && <CategoriesUnitsView />}
             {visibleTab === 'inventory' && <InventoryView />}
@@ -66,6 +67,7 @@ const MainLayout: React.FC = () => {
             {visibleTab === 'activity-logs' && <ActivityLogsView />}
           </Suspense>
         </main>
+        <div ref={setMobileCheckoutHost} className="shrink-0 xl:hidden print:hidden" />
         <ToastContainer />
       </div>
     );
@@ -86,7 +88,7 @@ const MainLayout: React.FC = () => {
           <div className="max-w-7xl mx-auto w-full">
             <Suspense fallback={<ViewLoading />}>
               {visibleTab === 'dashboard' && <DashboardView />}
-              {(visibleTab === 'pos' || visibleTab === 'cashier') && <PosView />}
+              {(visibleTab === 'pos' || visibleTab === 'cashier') && <PosView mobileCheckoutHost={mobileCheckoutHost} />}
               {visibleTab === 'products' && <ProductsView />}
               {visibleTab === 'categories' && <CategoriesUnitsView />}
               {visibleTab === 'inventory' && <InventoryView />}
@@ -107,6 +109,7 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
 
+      <div ref={setMobileCheckoutHost} className="shrink-0 xl:hidden print:hidden" />
       <MobileNav />
 
       <ToastContainer />

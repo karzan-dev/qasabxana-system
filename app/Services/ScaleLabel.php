@@ -7,12 +7,13 @@ use InvalidArgumentException;
 final class ScaleLabel
 {
     public const DEFAULTS = [
-        'scale_label_enabled' => '0',
-        'scale_label_prefixes' => '20',
-        'scale_label_plu_length' => '5',
+        'scale_label_enabled' => '1',
+        'scale_label_prefixes' => '1',
+        'scale_label_plu_length' => '6',
         'scale_label_value_length' => '5',
         'scale_label_value_type' => 'weight',
         'scale_label_value_decimals' => '3',
+        'scale_label_formats' => '[]',
         'scale_unitless_unit' => 'kg',
         'scale_data_bits' => '8',
         'scale_parity' => 'none',
@@ -53,6 +54,68 @@ final class ScaleLabel
             && count(array_unique($layout['prefixes'])) === count($layout['prefixes']);
     }
 
+    public static function layouts(array $settings): array
+    {
+        $primary = self::layout($settings);
+        $additional = json_decode($settings['scale_label_formats'] ?? '[]', true);
+        if (! self::validLayout($primary) || ! is_array($additional) || ! array_is_list($additional) || count($additional) > 20) {
+            throw new InvalidArgumentException('scaleInvalidLayout');
+        }
+
+        $layouts = [$primary];
+        foreach ($additional as $format) {
+            if (! is_array($format) || ! is_string($format['prefix'] ?? null)
+                || ! preg_match('/^[0-9]{1,3}$/D', $format['prefix'])
+                || ($format['barcodeLength'] ?? null) !== 13 || ($format['validateChecksum'] ?? null) !== true) {
+                throw new InvalidArgumentException('scaleInvalidLayout');
+            }
+            $prefix = $format['prefix'];
+            $start = $format['productCodeStart'] ?? null;
+            $length = $format['productCodeLength'] ?? null;
+            $valueStart = $format['weightStart'] ?? null;
+            $valueLength = $format['weightLength'] ?? null;
+            $type = $format['barcodeType'] ?? null;
+            $divisor = $type === 'price' ? ($format['priceDivisor'] ?? null) : ($format['weightDivisor'] ?? null);
+            $pluLength = $format['pluLength'] ?? null;
+            if (! is_int($start) || ! is_int($length) || ! is_int($valueStart) || ! is_int($valueLength)
+                || ! in_array($divisor, [1, 10, 100, 1000], true)
+                || ! in_array($type, ['weight', 'price'], true)
+                || ! is_int($pluLength) || $pluLength < $length || $pluLength > 9
+                || $length < 1 || $valueLength < 1 || $start < strlen($prefix) || $valueStart < strlen($prefix)
+                || $start + $length > 12 || $valueStart + $valueLength > 12
+                || ($start < $valueStart + $valueLength && $valueStart < $start + $length)) {
+                throw new InvalidArgumentException('scaleInvalidLayout');
+            }
+            foreach ($layouts as $layout) {
+                foreach ($layout['prefixes'] as $other) {
+                    if (str_starts_with($prefix, $other) || str_starts_with($other, $prefix)) {
+                        throw new InvalidArgumentException('scaleInvalidLayout');
+                    }
+                }
+            }
+            $layouts[] = [
+                'prefixes' => [$prefix], 'plu_length' => $length, 'value_length' => $valueLength,
+                'type' => $type, 'decimals' => strlen((string) $divisor) - 1,
+                'product_start' => $start, 'value_start' => $valueStart, 'normalized_length' => $pluLength,
+            ];
+        }
+
+        return $layouts;
+    }
+
+    public static function layoutFor(string $code, array $settings): ?array
+    {
+        foreach (self::layouts($settings) as $layout) {
+            foreach ($layout['prefixes'] as $prefix) {
+                if (str_starts_with($code, $prefix)) {
+                    return $layout;
+                }
+            }
+        }
+
+        return null;
+    }
+
     public static function checkDigit(string $body): int
     {
         if (! preg_match('/^[0-9]{12}$/D', $body)) {
@@ -89,7 +152,7 @@ final class ScaleLabel
     public static function parse(string $code, array $layout): array
     {
         self::validateBarcode($code);
-        if (! self::validLayout($layout)) {
+        if (! isset($layout['product_start']) && ! self::validLayout($layout)) {
             throw new InvalidArgumentException('scaleInvalidLayout');
         }
 
@@ -99,14 +162,16 @@ final class ScaleLabel
             throw new InvalidArgumentException('scaleUnknownPrefix');
         }
 
-        $plu = self::normalizePlu(substr($code, $width, $layout['plu_length']));
-        $encoded = (int) substr($code, $width + $layout['plu_length'], $layout['value_length']);
+        $productCode = substr($code, $layout['product_start'] ?? $width, $layout['plu_length']);
+        $plu = self::normalizePlu($productCode);
+        $encoded = (int) substr($code, $layout['value_start'] ?? $width + $layout['plu_length'], $layout['value_length']);
         if ($encoded === 0) {
             throw new InvalidArgumentException('scaleZeroValue');
         }
 
         return [
-            'prefix' => $prefix, 'plu' => $plu, 'encoded' => $encoded,
+            'prefix' => $prefix, 'plu' => $plu, 'encoded' => $encoded, 'product_code' => $productCode,
+            'normalized_plu' => str_pad($plu, $layout['normalized_length'] ?? 6, '0', STR_PAD_LEFT), 'checksum' => $code[12],
             'type' => $layout['type'], 'value' => $encoded / 10 ** $layout['decimals'],
         ];
     }

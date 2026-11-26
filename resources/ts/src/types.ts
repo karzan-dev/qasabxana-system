@@ -40,6 +40,7 @@ export interface Product {
   barcode: string;
   sku: string;
   scale_product_code?: string;
+  scale_barcode_enabled?: boolean;
   name_ku: string;
   category_id: number;
   unit_id: number;
@@ -231,6 +232,7 @@ export interface AppSettings {
   scale_baud_rate?: string;
   scale_label_enabled?: string;
   scale_label_prefixes?: string;
+  scale_label_formats?: string;
   scale_label_plu_length?: string;
   scale_label_value_length?: string;
   scale_label_value_type?: string;

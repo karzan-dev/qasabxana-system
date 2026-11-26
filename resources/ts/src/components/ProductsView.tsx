@@ -18,6 +18,7 @@ type ProductForm = {
   price_per_kg: string;
   tare_weight: string;
   scale_product_code: string;
+  scale_barcode_enabled: string;
   wholesale_price: string;
   quantity: string;
   min_stock: string;
@@ -42,6 +43,7 @@ const EMPTY_FORM: ProductForm = {
   price_per_kg: '',
   tare_weight: '0',
   scale_product_code: '',
+  scale_barcode_enabled: '1',
   wholesale_price: '',
   quantity: '0',
   min_stock: '0',
@@ -358,6 +360,7 @@ export function ProductsView() {
       price_per_kg: String(product.price_per_kg ?? ''),
       tare_weight: String(product.tare_weight ?? 0),
       scale_product_code: product.scale_product_code ?? '',
+      scale_barcode_enabled: product.scale_barcode_enabled === false ? '0' : '1',
       wholesale_price: String(product.wholesale_price),
       quantity: String(product.quantity),
       min_stock: String(product.min_stock),
@@ -516,6 +519,7 @@ export function ProductsView() {
         price_per_kg: productForm.price_per_kg,
         tare_weight: Number(productForm.tare_weight || 0),
         scale_product_code: productForm.scale_product_code || '',
+        scale_barcode_enabled: productForm.scale_barcode_enabled,
         wholesale_price: Number(productForm.wholesale_price || 0),
         quantity: Number(productForm.quantity || 0),
         min_stock: Number(productForm.min_stock || 0),
@@ -1206,6 +1210,13 @@ export function ProductsView() {
                   className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-normal dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                 />
                 <span className="mt-1 block font-normal">{t('scalePluHelp')}</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold">
+                <input type="checkbox" checked={form.scale_barcode_enabled === '1'} onChange={event => {
+                  const enabled = event.target.checked ? '1' : '0';
+                  setForm(current => current ? { ...current, scale_barcode_enabled: enabled } : current);
+                }} />
+                {t('scaleLabelEnabled')}
               </label>
 
               {field('purchase_price', t('purchasePrice'), 'number', true, t('purchasePrice'))}

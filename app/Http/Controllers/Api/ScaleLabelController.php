@@ -62,13 +62,21 @@ class ScaleLabelController extends Controller
             }
             $layout = $matches[0];
             DB::transaction(function () use ($layout) {
-                foreach ([
+                $updated = [
                     'scale_label_prefixes' => implode(',', $layout['prefixes']),
                     'scale_label_plu_length' => $layout['plu_length'],
                     'scale_label_value_length' => $layout['value_length'],
                     'scale_label_value_type' => $layout['type'],
                     'scale_label_value_decimals' => $layout['decimals'],
-                ] as $key => $value) {
+                ];
+                $previous = Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))
+                    ->lockForUpdate()->pluck('key_value', 'key_name')->all();
+                try {
+                    ScaleLabel::layouts($updated + $previous);
+                } catch (InvalidArgumentException $error) {
+                    throw ValidationException::withMessages(['samples' => [$error->getMessage()]]);
+                }
+                foreach ($updated as $key => $value) {
                     Setting::updateOrCreate(['key_name' => $key], ['key_value' => (string) $value, 'group_name' => 'scale']);
                 }
                 self::clearChecklist();
@@ -113,6 +121,30 @@ class ScaleLabelController extends Controller
 
         return response()->json(['success' => true, 'data' => [
             'code' => $code, ...$parsed, 'weight_kg' => $weight, 'name' => $resolved->name_ku,
+        ]]);
+    }
+
+    public function testBarcode(Request $request): JsonResponse
+    {
+        $code = $request->validate(['code' => 'required|string|max:64'])['code'];
+        $settings = Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))->pluck('key_value', 'key_name')->all();
+        try {
+            ScaleLabel::validateBarcode($code);
+            $layout = ScaleLabel::layoutFor($code, $settings);
+            if (! $layout) {
+                throw new InvalidArgumentException('scaleUnknownPrefix');
+            }
+            [$product, $label] = ScaleProducts::readLabel($code, $layout);
+        } catch (InvalidArgumentException $error) {
+            throw ValidationException::withMessages(['code' => [$error->getMessage()]]);
+        }
+        $price = (float) $product->price_per_kg ?: (float) $product->selling_price
+            * (strtolower((string) $product->unit?->short_code) === 'g' ? 1000 : 1);
+
+        return response()->json(['success' => true, 'data' => [
+            ...$label, 'code' => $code, 'name' => $product->name_ku, 'checksum_valid' => true,
+            'weight_grams' => (int) round($label['weight_kg'] * 1000), 'price_per_kg' => $price,
+            'total' => round($label['weight_kg'] * $price, 2),
         ]]);
     }
 

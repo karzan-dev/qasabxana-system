@@ -10,9 +10,9 @@ const buttonClass = 'rounded-md border border-rose-300 px-3 py-2 text-sm font-se
 const panelClass = 'space-y-3 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900';
 
 const fields = [
-  ['scale_label_enabled', 'scaleLabelEnabled', '0', ['0', '1']],
-  ['scale_label_prefixes', 'scalePrefixes', '20', null],
-  ['scale_label_plu_length', 'scalePluLength', '5', ['4', '5', '6']],
+  ['scale_label_enabled', 'scaleLabelEnabled', '1', ['0', '1']],
+  ['scale_label_prefixes', 'scalePrefixes', '1', null],
+  ['scale_label_plu_length', 'scalePluLength', '6', ['4', '5', '6']],
   ['scale_label_value_length', 'scaleValueLength', '5', ['4', '5', '6']],
   ['scale_label_value_type', 'scaleValueType', 'weight', ['weight', 'price']],
   ['scale_label_value_decimals', 'scaleValueDecimals', '3', ['0', '1', '2', '3']],
@@ -22,13 +22,12 @@ const fields = [
   ['scale_stop_bits', 'scaleStopBits', '1', ['1', '2']],
 ] as const;
 
-type ScaleField = (typeof fields)[number][0];
+type ScaleField = (typeof fields)[number][0] | 'scale_label_formats';
 
 export function ScaleConfigurationFields({ form, setField }: { form: AppSettings; setField: (key: ScaleField, value: string) => void }) {
   const { t } = useApp();
   return (
     <>
-      <p className="text-xs sm:col-span-2">{t('scaleAssumption')}</p>
       {fields.map(([key, label, fallback, options]) => (
         <label key={key} className="text-xs font-semibold">{t(label)}
           {options ? <select className={inputClass} value={form[key] ?? fallback} onChange={event => setField(key, event.target.value)}>
@@ -36,6 +35,9 @@ export function ScaleConfigurationFields({ form, setField }: { form: AppSettings
           </select> : <input className={inputClass} dir="ltr" value={form[key] ?? fallback} onChange={event => setField(key, event.target.value)} />}
         </label>
       ))}
+      <label className="text-xs font-semibold sm:col-span-2">{t('scaleAdditionalFormats')}
+        <textarea className={inputClass} dir="ltr" rows={3} value={form.scale_label_formats ?? '[]'} onChange={event => setField('scale_label_formats', event.target.value)} />
+      </label>
       {form.scale_label_value_type === 'price' && <p className="text-xs sm:col-span-2">{t('scalePriceCapacity')}</p>}
     </>
   );
@@ -48,6 +50,14 @@ type Learning = { layouts: Layout[]; can_save: boolean };
 type ScaleProduct = { id: number; name_ku: string; scale_product_code: string };
 type Catalog = { products: ScaleProduct[]; duplicates: Array<{ plu: string; products: ScaleProduct[] }> };
 type Preview = { code: string; plu: string; weight_kg: number; type: 'weight' | 'price'; value: number; name: string };
+type BarcodeTest = Preview & {
+  prefix: string;
+  product_code: string;
+  weight_grams: number;
+  price_per_kg: number;
+  total: number;
+  checksum_valid: boolean;
+};
 
 const checks = ['printed', 'learned', 'half', 'oneQuarter', 'thirdProduct', 'priceMatches', 'saleReturned'] as const;
 type Check = (typeof checks)[number];
@@ -79,8 +89,10 @@ const serialSamples = [
 ];
 
 export function ScaleSettingsTools({ admin }: { admin: boolean }) {
-  const { settings, updateSettings, showToast, t } = useApp();
-  const [tab, setTab] = useState<'learn' | 'simulation' | 'checklist'>('learn');
+  const { settings, updateSettings, showToast, t, formatCurrency } = useApp();
+  const [tab, setTab] = useState<'learn' | 'simulation' | 'checklist' | 'test'>('test');
+  const [testCode, setTestCode] = useState('1000077001305');
+  const [tested, setTested] = useState<BarcodeTest | null>(null);
   const [catalog, setCatalog] = useState<Catalog>({ products: [], duplicates: [] });
   const [samples, setSamples] = useState<Sample[]>([{ ...emptySample }]);
   const [learning, setLearning] = useState<Learning | null>(null);
@@ -148,6 +160,14 @@ export function ScaleSettingsTools({ admin }: { admin: boolean }) {
     setFrames(serialSamples.flatMap(chunks => ['0 g\r', ...chunks].flatMap(parse)).filter(frame => frame.raw !== '0 g'));
   };
 
+  const testBarcode = () => run(async () => {
+    setTested(null);
+    const result = await apiRequest<BarcodeTest>('/api/settings/scale/test-barcode', {
+      method: 'POST', body: jsonBody({ code: testCode.trim() }),
+    });
+    setTested(result.data);
+  });
+
   const saveChecklist = () => run(async () => {
     const result = await apiRequest<Checklist>('/api/settings/scale/checklist', { method: 'POST', body: jsonBody({ items: completed }) });
     setSavedChecks(result.data);
@@ -158,10 +178,24 @@ export function ScaleSettingsTools({ admin }: { admin: boolean }) {
   return (
     <section className={panelClass} aria-label={t('scaleSettings')}>
       <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={buttonClass} aria-pressed={tab === 'test'} onClick={() => setTab('test')}>{t('scaleTestBarcode')}</button>
         <button type="button" className={buttonClass} aria-pressed={tab === 'learn'} onClick={() => setTab('learn')}>{t('scaleLearn')}</button>
         {admin && <button type="button" className={buttonClass} aria-pressed={tab === 'simulation'} onClick={() => setTab('simulation')}>{t('scaleSimulation')}</button>}
         {admin && <button type="button" className={buttonClass} aria-pressed={tab === 'checklist'} onClick={() => setTab('checklist')}>{t('scaleChecklist')}</button>}
       </div>
+      {tab === 'test' && <form className="space-y-2" onSubmit={event => { event.preventDefault(); if (!busy) void testBarcode(); }}>
+        <p className="text-sm">{t('scaleTestOnly')}</p>
+        <label className="text-xs">{t('scaleSample_code')}
+          <input className={inputClass} dir="ltr" inputMode="numeric" value={testCode} onChange={event => { setTestCode(event.target.value); setTested(null); }} />
+        </label>
+        <button className={buttonClass} disabled={busy || !testCode.trim()}>{t('scaleTestBarcode')}</button>
+        {tested && <div className="text-sm" role="status">
+          <p><bdi>{tested.code}</bdi> · {t(tested.type)} · {t('scalePrefixes')} <bdi>{tested.prefix}</bdi></p>
+          <p>{tested.name} · {t('scaleProductCode')} <bdi>{tested.product_code}</bdi> · <bdi>{tested.weight_grams} g / {tested.weight_kg.toFixed(3)} kg</bdi></p>
+          <p>{t('pricePerKg')} {formatCurrency(tested.price_per_kg)} · {t('total')} {formatCurrency(tested.total)} · {t('scaleChecksumValid')}</p>
+          {tested.type === 'price' && <p>{t('scaleSample_price')} {formatCurrency(tested.value)}</p>}
+        </div>}
+      </form>}
       <p role="status" className="text-sm font-semibold">{t(savedChecks.verified ? 'scaleHardwareVerified' : 'scaleHardwareUnverified')}</p>
       {catalog.duplicates.length > 0 && (
         <aside className="rounded border border-amber-400 p-3 text-sm">

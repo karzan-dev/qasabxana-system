@@ -144,7 +144,7 @@ export function PosView() {
   const creditStorageErrorShown = useRef(false);
 
   useEffect(() => {
-    searchInputRef.current?.focus();
+    if (window.matchMedia('(pointer: fine)').matches) searchInputRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -306,8 +306,7 @@ export function PosView() {
         const nextQuantity = Math.min(stockLimit(product), existing.quantity + quantityToAdd);
         if (nextQuantity === existing.quantity) return current;
         const next = makeCartLine(product, nextQuantity);
-        if (existing.weight?.scale_source === 'label' && next.weight) next.weight.scale_source = 'label';
-        return current.map(line => line.product.id === product.id ? { ...line, ...next } : line);
+        return current.map(line => line.product.id === product.id ? next : line);
       }
       return [...current, makeCartLine(product, quantityToAdd)];
     });
@@ -329,6 +328,7 @@ export function PosView() {
       const quantity = Math.min(netWeight, stockLimit(line.product));
       return {
         ...line,
+        labelCodes: [],
         quantity,
         weight: {
           net_weight: quantity,
@@ -354,7 +354,7 @@ export function PosView() {
 
   const addLabel = ({ product, code, kg }: ScannedLabel) => {
     const existing = currentCart.current.find(line => line.product.id === product.id);
-    const quantity = Math.round(((existing?.quantity ?? 0) + kg) * 1000) / 1000;
+    const quantity = Math.round(((existing?.labelCodes?.length ? existing.quantity : 0) + kg) * 1000) / 1000;
     if (quantity > stockLimit(product)) {
       showToast(t('scaleStockExceeded'), 'warning');
       return;
@@ -363,7 +363,7 @@ export function PosView() {
     saleIdempotencyKey.current = null;
     setCart(current => {
       const previous = current.find(line => line.product.id === product.id);
-      const totalKg = Math.round(((previous?.quantity ?? 0) + kg) * 1000) / 1000;
+      const totalKg = Math.round(((previous?.labelCodes?.length ? previous.quantity : 0) + kg) * 1000) / 1000;
       if (totalKg > stockLimit(product)) return current;
       const line: CartLine = {
         product, quantity: totalKg, labelCodes: [...(previous?.labelCodes ?? []), code],
@@ -371,7 +371,11 @@ export function PosView() {
       };
       return previous ? current.map(item => item.product.id === product.id ? line : item) : [...current, line];
     });
-    setWeightInputs(current => ({ ...current, [product.id]: String(quantity) }));
+    setWeightInputs(current => {
+      const next = { ...current };
+      delete next[product.id];
+      return next;
+    });
     setSearch('');
   };
 
@@ -404,7 +408,7 @@ export function PosView() {
       if (nextQuantity <= 0) return [];
       const quantity = Math.min(nextQuantity, stockLimit(line.product));
       return [line.weight
-        ? { ...line, quantity, weight: { ...line.weight, net_weight: quantity, scale_source: 'manual' as const } }
+        ? { ...line, quantity, labelCodes: [], weight: { ...line.weight, net_weight: quantity, scale_source: 'manual' as const } }
         : { ...line, quantity }];
     }));
   };
@@ -432,6 +436,7 @@ export function PosView() {
                 weight_unit: 'kg',
                 scale_source: line.weight?.scale_source ?? 'manual',
                 price_per_kg: perKg,
+                ...(line.labelCodes?.length ? { scale_barcodes: line.labelCodes } : {}),
               } : {}),
             };
           }),
@@ -497,9 +502,10 @@ export function PosView() {
           </div>
         </div>
       </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:grid-cols-[minmax(0,1fr)_32rem]">
-        <div className="space-y-3 xl:sticky xl:top-4 xl:self-start">
-          <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter') void findBarcode(); }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
+      {cart.length > 0 && <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ block: 'start' })} className="sticky top-0 z-20 flex min-h-11 w-full items-center justify-between gap-3 rounded-md bg-rose-700 px-4 py-3 text-sm font-bold text-white shadow-lg xl:hidden"><span className="flex items-center gap-2"><ShoppingCart className="size-4" />{t('cart')} ({cart.length})</span><span>{formatCurrency(total)}</span></button>}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_28rem] 2xl:grid-cols-[minmax(0,1fr)_32rem]">
+        <div id="pos-products" className="min-w-0 scroll-mt-14 space-y-3 xl:sticky xl:top-4 xl:self-start">
+          <div className="flex gap-2"><label className="relative min-w-0 flex-1"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" /><input ref={searchInputRef} value={search} onChange={event => { setSearch(event.target.value); setCurrentPage(1); }} onKeyDown={event => { if (event.key === 'Enter' && !event.repeat && !event.nativeEvent.isComposing) { event.preventDefault(); void findBarcode(event.currentTarget.value); } }} placeholder={`${t('search')} / ${t('barcode')}`} className="w-full rounded-md border border-slate-300 bg-white py-2.5 ps-9 pe-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label><BarcodeScannerButton onDetected={barcode => { setSearch(barcode); setCurrentPage(1); void findBarcode(barcode); }} /><button onClick={() => void findBarcode()} className="grid size-10 shrink-0 place-items-center rounded-md bg-rose-700 text-white" title={t('barcode')}><Barcode className="size-5" /></button></div>
           {settings.scale_enabled === '1' && settings.scale_mode === 'web_serial' && (
             <ScalePanel
               baudRate={Number(settings.scale_baud_rate) || 9600}
@@ -534,10 +540,10 @@ export function PosView() {
               <button type="button" onClick={() => setCurrentPage(page => Math.min(totalPages, page + 1))} disabled={displayedPage === totalPages} className="rounded-md border border-slate-300 px-3 py-1.5 font-semibold disabled:opacity-50 dark:border-slate-700">{t('nextPage')}</button>
             </div>}
           </div>}
-          {cart.length > 0 && <button type="button" onClick={() => document.getElementById('pos-cart')?.scrollIntoView({ behavior: 'smooth' })} className="sticky bottom-2 z-20 flex w-full items-center justify-between gap-3 rounded-md bg-rose-700 px-4 py-3 text-sm font-bold text-white shadow-lg xl:hidden"><span className="flex items-center gap-2"><ShoppingCart className="size-4" />{t('cart')} ({cart.length})</span><span>{formatCurrency(total)}</span></button>}
         </div>
 
-        <aside id="pos-cart" className="flex min-h-[30rem] scroll-mt-4 flex-col rounded-xl border border-rose-100 bg-white shadow-lg shadow-slate-900/5 dark:border-rose-900/40 dark:bg-slate-900">
+        <aside id="pos-cart" className="flex min-w-0 scroll-mt-14 flex-col xl:min-h-[30rem] xl:scroll-mt-4 rounded-xl border border-rose-100 bg-white shadow-lg shadow-slate-900/5 dark:border-rose-900/40 dark:bg-slate-900">
+          <button type="button" onClick={() => document.getElementById('pos-products')?.scrollIntoView({ block: 'start' })} className="min-h-11 border-b border-rose-100 px-4 text-start text-sm font-semibold text-rose-700 dark:border-rose-900/40 dark:text-rose-300 xl:hidden">{t('products')}</button>
           <div className="flex items-center justify-between border-b border-rose-100 bg-gradient-to-b from-rose-50/80 to-white px-5 py-4 dark:border-rose-900/40 dark:from-rose-950/25 dark:to-slate-900"><h2 className="flex items-center gap-2 text-base font-extrabold text-slate-900 dark:text-white"><ShoppingCart className="size-5 text-rose-700 dark:text-rose-300" />{t('cart')}</h2><span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 dark:bg-rose-900/40 dark:text-rose-200">{cart.length} {t('items')}</span></div>
           <div className="space-y-4 border-b border-slate-200 bg-slate-50/60 px-5 py-4 dark:border-slate-800 dark:bg-slate-950/30">
             <div className="grid grid-cols-2 gap-1.5 rounded-lg bg-slate-200/70 p-1.5 text-sm dark:bg-slate-800">{(['CASH', 'CREDIT'] as const).map(method => <button key={method} onClick={() => { saleIdempotencyKey.current = null; setPaymentMethod(method); }} className={`rounded-md px-3 py-2 font-bold transition ${paymentMethod === method ? 'bg-white text-rose-700 shadow-sm ring-1 ring-rose-200 dark:bg-slate-950 dark:text-rose-200 dark:ring-rose-900/50' : 'text-slate-600 hover:bg-white/60 dark:text-slate-300 dark:hover:bg-slate-700/40'}`}>{t(method.toLowerCase())}</button>)}</div>
@@ -553,9 +559,9 @@ export function PosView() {
               const weighted = isWeightedProduct(line.product);
               const targetActive = scaleTargetId === line.product.id;
               return (
-                <div key={line.product.id} className="flex items-center gap-3 rounded-lg border border-rose-100/80 bg-white p-4 shadow-sm transition hover:border-rose-200 hover:bg-rose-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/20">
-                  {line.product.image && <img src={line.product.image} alt="" loading="lazy" className="size-12 shrink-0 rounded-lg object-cover" onError={event => { event.currentTarget.style.display = 'none'; }} />}
-                  <div className="min-w-0 flex-1">
+                <div key={line.product.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-rose-100/80 bg-white p-3 sm:flex-nowrap sm:gap-3 sm:p-4 shadow-sm transition hover:border-rose-200 hover:bg-rose-50/40 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-rose-900/40 dark:hover:bg-rose-950/20">
+                  {line.product.image && <img src={line.product.image} alt="" loading="lazy" className="hidden size-12 shrink-0 rounded-lg object-cover sm:block" onError={event => { event.currentTarget.style.display = 'none'; }} />}
+                  <div className="min-w-0 basis-full sm:flex-1">
                     <p className="truncate text-base font-bold text-slate-900 dark:text-white">{getLocalizedName(line.product)}</p>
                     <p className="mt-0.5 text-sm font-medium text-slate-600 dark:text-slate-300">
                       {weighted
@@ -565,6 +571,7 @@ export function PosView() {
                     {line.weight && (
                       <p className="mt-1 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
                         {t('scaleSource')}: {t(line.weight.scale_source === 'label' ? 'scaleSourceLabel' : line.weight.scale_source === 'web-serial' ? 'useWebSerial' : 'manualWeight')}
+                        {line.weight.scale_source === 'label' && line.product.scale_product_code && <> · <bdi>{line.product.scale_product_code}</bdi></>}
                         {line.weight.tare_weight !== undefined && ` · ${t('tareWeight')}: ${line.weight.tare_weight} kg`}
                       </p>
                     )}
@@ -576,13 +583,14 @@ export function PosView() {
                         <NumericInput
                           inputMode="decimal"
                           placeholder="0.000"
-                          value={weightInputs[line.product.id] ?? line.quantity}
+                          value={weightInputs[line.product.id] ?? (line.labelCodes?.length ? line.quantity.toFixed(3) : line.quantity)}
                           onValueChange={value => {
                             setWeightInputs(current => ({ ...current, [line.product.id]: value }));
                             const entered = Number(value);
                             if (Number.isFinite(entered) && entered >= 0.001) applyWeight(line.product.id, entered, 'manual', false);
                           }}
                           onBlur={event => {
+                            if (weightInputs[line.product.id] === undefined) return;
                             const entered = Number(event.currentTarget.value.replace(/,/g, ''));
                             if (Number.isFinite(entered) && entered >= 0.001) {
                               applyWeight(line.product.id, entered, 'manual');
@@ -614,7 +622,7 @@ export function PosView() {
                       <button onClick={() => updateQuantity(line.product.id, line.quantity + 1)} aria-label={t('increase')} className="grid size-9 place-items-center rounded-md bg-white text-rose-700 shadow-sm hover:bg-rose-50 dark:bg-slate-800 dark:text-rose-200"><Plus className="size-4" /></button>
                     </div>
                   )}
-                  <button onClick={() => { updateQuantity(line.product.id, 0); setScaleTargetId(current => current === line.product.id ? null : current); }} aria-label={t('delete')} className="grid size-9 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-700 transition hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"><Trash2 className="size-4" /></button>
+                  <button onClick={() => { updateQuantity(line.product.id, 0); setScaleTargetId(current => current === line.product.id ? null : current); }} aria-label={t('delete')} className="ms-auto grid size-11 shrink-0 place-items-center rounded-lg bg-rose-50 sm:size-9 text-rose-700 transition hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"><Trash2 className="size-4" /></button>
                 </div>
               );
             })}
@@ -639,8 +647,8 @@ export function PosView() {
       </div>
       {showCreditSaleForm && <div className="fixed inset-0 z-50 overflow-y-auto flex items-center-safe justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="credit-sale-title"><form onSubmit={event => { event.preventDefault(); void completeSale(creditCustomer); }} className="w-full max-w-md space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"><div className="flex items-center justify-between"><h2 id="credit-sale-title" className="text-base font-bold text-slate-900 dark:text-white">{t('customer')}</h2><button type="button" onClick={() => setShowCreditSaleForm(false)} aria-label={t('close')} className="rounded p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">×</button></div><div className="grid gap-3 sm:grid-cols-2"><div className="relative text-xs font-semibold text-slate-600 dark:text-slate-300"><label>{t('name')}<input autoFocus required maxLength={100} autoComplete="off" value={creditCustomer.name} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, name: event.target.value })); }} placeholder={t('name')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label>{!creditCustomerId && matchingCreditCustomers.length > 0 && <div className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-auto rounded-md border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">{matchingCreditCustomers.map(customer => <button key={customer.id} type="button" onClick={() => { saleIdempotencyKey.current = null; setCreditCustomerId(String(customer.id)); setCreditCustomer({ name: customer.name, phone: customer.phone || '', address: customer.address || '' }); }} className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2 text-start last:border-0 hover:bg-rose-50 dark:border-slate-800 dark:hover:bg-slate-800"><span className="font-semibold">{customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</span><span className="text-[10px] text-rose-600 dark:text-rose-300">{t('debt')}: {formatCurrency(customer.debt)}</span></button>)}</div>}</div><label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('phone')}<input required={!creditCustomerId} maxLength={30} value={creditCustomer.phone} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, phone: event.target.value })); }} placeholder={t('phone')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">{t('address')}<input required={!creditCustomerId} value={creditCustomer.address} onChange={event => { saleIdempotencyKey.current = null; setCreditCustomerId(''); setCreditCustomer(current => ({ ...current, address: event.target.value })); }} placeholder={t('address')} className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label></div><div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800"><div className="flex justify-between font-semibold"><span>{t('total')}</span><span>{formatCurrency(total)}</span></div><label className="flex flex-col items-center gap-1 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">{t('cashReceived')}<NumericInput min="0" max={total} step="0.01" value={creditAmountPaid} onValueChange={value => { saleIdempotencyKey.current = null; setCreditAmountPaid(value); }} placeholder="0" className="w-36 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-center text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white" /></label><div className="flex justify-between text-xs text-rose-700 dark:text-rose-300"><span>{t('debt')}</span><span>{formatCurrency(Math.max(0, total - (Number(creditAmountPaid) || 0)))}</span></div></div><div className="flex justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800"><button type="button" onClick={() => setShowCreditSaleForm(false)} className="rounded-md border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200">{t('cancel')}</button><button type="submit" disabled={saving} className="rounded-md bg-rose-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">{saving ? t('loading') : t('completeSale')}</button></div></form></div>}
       <ConfirmModal isOpen={repeatLabel !== null} title={t('scaleRepeatLabel')} message={t('scaleRepeatLabelDetail')}
-        confirmLabel={t('addItem')} isDestructive={false} onCancel={() => setRepeatLabel(null)}
-        onConfirm={() => { if (repeatLabel) addLabel(repeatLabel); setRepeatLabel(null); }} />
+        confirmLabel={t('addItem')} isDestructive={false} onCancel={() => { setRepeatLabel(null); setSearch(''); searchInputRef.current?.focus(); }}
+        onConfirm={() => { if (repeatLabel) addLabel(repeatLabel); setRepeatLabel(null); searchInputRef.current?.focus(); }} />
       {receipt && <ReceiptModal sale={receipt.sale} items={receipt.items.map(item => ({
         id: item.id || 0, sale_id: receipt.sale.id, product_id: item.product_id, quantity: item.quantity,
         unit_price: item.unit_price, purchase_cost: item.purchase_cost || 0, discount: item.discount || 0,

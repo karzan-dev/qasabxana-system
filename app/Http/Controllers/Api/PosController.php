@@ -10,14 +10,17 @@ use App\Models\Customer;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\Sale;
-use App\Models\SaleReturn;
 use App\Models\SaleItem;
+use App\Models\SaleReturn;
 use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Services\CashRegisterLedger;
+use App\Services\ScaleLabel;
+use App\Services\ScaleProducts;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class PosController extends Controller
 {
@@ -46,6 +49,8 @@ class PosController extends Controller
             'items.*.weight_unit' => 'nullable|string|in:g,kg',
             'items.*.scale_source' => 'nullable|string|max:30',
             'items.*.price_per_kg' => 'nullable|numeric|min:0',
+            'items.*.scale_barcodes' => 'sometimes|array|min:1|max:200',
+            'items.*.scale_barcodes.*' => 'required|string|digits:13',
             'customer_id' => 'nullable|exists:customers,id',
             'customer' => 'nullable|array',
             'customer.name' => 'required_with:customer|string|max:100',
@@ -63,8 +68,6 @@ class PosController extends Controller
             static fn (array $item): int => (int) $item['product_id'],
             $validated['items'],
         )));
-        $productPreview = Product::with('unit')->whereIn('id', $productIds)->get()->keyBy('id');
-        $items = $this->normalizeWeightedItems($validated['items'], $productPreview);
         $discount = (float) ($validated['discount'] ?? 0);
         $paymentMethod = $validated['payment_method'];
         $customerId = $validated['customer_id'] ?? null;
@@ -92,29 +95,30 @@ class PosController extends Controller
             ]);
         }
 
-        return DB::transaction(function () use ($items, $discount, $paymentMethod, $customerId, $customerData, $cashReceived, $request, $userId, $idempotencyKey, $cashLedger) {
+        return DB::transaction(function () use ($validated, $productIds, $discount, $paymentMethod, $customerId, $customerData, $cashReceived, $request, $userId, $idempotencyKey, $cashLedger) {
             $subtotal = 0;
             $costOfGoods = 0;
             $saleItemsToInsert = [];
 
             // 1. Lock products in a stable order and validate total requested stock per product.
+            $productsById = Product::with('unit')->whereIn('id', $productIds)
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $items = $this->normalizeWeightedItems($validated['items'], $productsById);
             $requestedQuantities = [];
             foreach ($items as $item) {
                 $productId = (int) $item['product_id'];
-                $requestedQuantities[$productId] = ($requestedQuantities[$productId] ?? 0.0) + (float) $item['quantity'];
+                $requestedQuantities[$productId] = round(($requestedQuantities[$productId] ?? 0.0) + (float) $item['quantity'], 3);
             }
             ksort($requestedQuantities);
 
-            $productsById = [];
             $allowNegative = Setting::get('allow_negative_stock', '0') === '1';
             foreach ($requestedQuantities as $productId => $requestedQuantity) {
-                $product = Product::lockForUpdate()->findOrFail($productId);
+                $product = $productsById[$productId];
                 if (! $allowNegative && $product->quantity < $requestedQuantity) {
                     throw ValidationException::withMessages([
                         'items' => "بڕی بەردەست لە {$product->name_ku} بەش ناکات (بەردەست: {$product->quantity})",
                     ]);
                 }
-                $productsById[$productId] = $product;
             }
 
             // 2. Compute totals and prepare sale items.
@@ -122,7 +126,9 @@ class PosController extends Controller
                 $product = $productsById[(int) $item['product_id']];
                 $qty = (float) $item['quantity'];
                 $unitPrice = (float) $item['unit_price'];
-                $lineSubtotal = round($qty * ($item['exact_unit_price'] ?? $unitPrice), 2);
+                $lineSubtotal = isset($item['scale_barcodes'])
+                    ? round((int) round($item['net_weight'] * 1000) * (int) round($item['price_per_kg'] * 100) / 100000, 2)
+                    : round($qty * ($item['exact_unit_price'] ?? $unitPrice), 2);
                 $itemTotal = $lineSubtotal;
                 $itemCost = round($qty * (float) $product->purchase_price, 2);
                 $itemProfit = $itemTotal - $itemCost;
@@ -138,6 +144,7 @@ class PosController extends Controller
                     'net_weight' => isset($item['net_weight']) ? (float) $item['net_weight'] : null,
                     'weight_unit' => $item['weight_unit'] ?? null,
                     'scale_source' => $item['scale_source'] ?? null,
+                    'scale_barcodes' => $item['scale_barcodes'] ?? null,
                     'price_per_kg' => isset($item['price_per_kg']) ? (float) $item['price_per_kg'] : null,
                     'unit_price' => $unitPrice,
                     'purchase_cost' => (float) $product->purchase_price,
@@ -200,7 +207,7 @@ class PosController extends Controller
             foreach ($saleItemsToInsert as $entry) {
                 $product = $entry['product'];
                 $prevQty = (float) $product->quantity;
-                $newQty = $prevQty - $entry['quantity'];
+                $newQty = round($prevQty - $entry['quantity'], 3);
 
                 // Deduct stock
                 $product->update(['quantity' => $newQty]);
@@ -215,6 +222,7 @@ class PosController extends Controller
                     'net_weight' => $entry['net_weight'],
                     'weight_unit' => $entry['weight_unit'],
                     'scale_source' => $entry['scale_source'],
+                    'scale_barcodes' => $entry['scale_barcodes'],
                     'price_per_kg' => $entry['price_per_kg'],
                     'unit_price' => $entry['unit_price'],
                     'purchase_cost' => $entry['purchase_cost'],
@@ -248,6 +256,7 @@ class PosController extends Controller
                     'net_weight' => $entry['net_weight'],
                     'weight_unit' => $entry['weight_unit'],
                     'scale_source' => $entry['scale_source'],
+                    'scale_barcodes' => $entry['scale_barcodes'],
                     'price_per_kg' => $entry['price_per_kg'],
                     'is_weighted' => (bool) $product->is_weighted,
                     'unit_price' => $entry['unit_price'],
@@ -330,12 +339,21 @@ class PosController extends Controller
      */
     private function normalizeWeightedItems(array $items, $products): array
     {
-        return array_map(function (array $item) use ($products): array {
+        $settings = Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))
+            ->pluck('key_value', 'key_name')->all() + ScaleLabel::DEFAULTS;
+
+        return array_map(function (array $item) use ($products, $settings): array {
             $product = $products->get((int) $item['product_id']);
+            if (! $product || $product->status !== 'ACTIVE') {
+                throw ValidationException::withMessages(['items' => ['productNotFound']]);
+            }
             $unitCode = strtolower((string) ($product?->unit?->short_code ?? ''));
             $isWeighted = (bool) ($product?->is_weighted ?? false) || in_array($unitCode, ['kg', 'g'], true);
 
             if (! $isWeighted) {
+                if (isset($item['scale_barcodes'])) {
+                    throw ValidationException::withMessages(['items' => ['scaleNotWeighted']]);
+                }
                 $item['unit_price'] = (float) $product->selling_price;
 
                 return $item;
@@ -353,6 +371,33 @@ class PosController extends Controller
             }
 
             $netKg = $weightUnit === 'g' ? $net / 1000 : $net;
+            if (isset($item['scale_barcodes'])) {
+                $grams = 0;
+                try {
+                    foreach ($item['scale_barcodes'] as $code) {
+                        $layout = $settings['scale_label_enabled'] === '1' ? ScaleLabel::layoutFor($code, $settings) : null;
+                        if (! $layout) {
+                            throw new InvalidArgumentException('scaleUnknownPrefix');
+                        }
+                        [$matched, $label] = ScaleProducts::readLabel($code, $layout);
+                        if ($matched->id !== $product->id) {
+                            throw new InvalidArgumentException('scalePluNotFound');
+                        }
+                        $grams += (int) round($label['weight_kg'] * 1000);
+                    }
+                } catch (InvalidArgumentException $error) {
+                    throw ValidationException::withMessages(['items' => [$error->getMessage()]]);
+                }
+                if ($grams !== (int) round($netKg * 1000)) {
+                    throw ValidationException::withMessages(['items' => ['scaleWeightMismatch']]);
+                }
+                $netKg = $grams / 1000;
+                $net = $netKg;
+                $weightUnit = 'kg';
+                $gross = null;
+                $tare = null;
+                $item['scale_source'] = 'label';
+            }
             $unitsPerKg = $unitCode === 'g' ? 1000 : 1;
             $pricePerKg = (float) $product->price_per_kg ?: (float) $product->selling_price * $unitsPerKg;
 
@@ -398,6 +443,7 @@ class PosController extends Controller
             'net_weight' => $item->net_weight,
             'weight_unit' => $item->weight_unit,
             'scale_source' => $item->scale_source,
+            'scale_barcodes' => $item->scale_barcodes,
             'price_per_kg' => $item->price_per_kg,
             'is_weighted' => (bool) $item->product?->is_weighted,
             'unit_price' => $item->unit_price,

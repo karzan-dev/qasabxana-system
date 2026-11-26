@@ -1,4 +1,11 @@
 const copy: Record<string, readonly [string, string, string]> = {
+  scaleBarcodeSettings: ['ڕێکخستنەکانی بارکۆدی قەپان', 'Scale Barcode Settings', 'إعدادات باركود الميزان'],
+  scaleAdditionalFormats: ['فۆرماتە زیادەکان (JSON)', 'Additional formats (JSON)', 'تنسيقات إضافية (JSON)'],
+  scaleTestBarcode: ['تاقیکردنەوەی بارکۆد', 'Test Barcode', 'اختبار الباركود'],
+  scaleChecksumValid: ['ژمارەی پشکنین دروستە', 'Checksum valid', 'رقم التحقق صحيح'],
+  scaleBarcodeConflict: ['ئەم بارکۆدە هەم بۆ کاڵای ئاسایی تۆمار کراوە هەم لە پێشگری قەپان دەگونجێت.', 'This barcode is registered to a product and matches a scale prefix.', 'هذا الباركود مسجل لمنتج ويطابق بادئة الميزان.'],
+  scaleWeightMismatch: ['کێشی سەبەتە لەگەڵ کێشی لیبڵەکان یەک ناگرێتەوە.', 'The cart weight differs from the scanned labels.', 'وزن السلة يختلف عن الملصقات الممسوحة.'],
+  scaleProductDisabled: ['خوێندنەوەی لیبڵ بۆ ئەم کاڵایە ناچالاکە.', 'Scale labels are disabled for this product.', 'ملصقات الميزان معطلة لهذا المنتج.'],
   scaleAssumption: ['EAN‑13 ــ پێشگری 20، PLU ـی ٥ ژمارە، بەهای ٥ ژمارە و ٣ خانەی دەهەمی کیلۆ. ئەمە گریمانەیە و فۆرماتی پشتڕاستکراوەی Rongta نییە.', 'EAN-13 with prefix 20, a five-digit PLU, a five-digit value and three kg decimals is an assumption. The Rongta format has not been verified.', 'EAN-13 بالبادئة 20 ورمز PLU من ٥ أرقام وقيمة من ٥ أرقام و٣ منازل للكيلوغرام هو افتراض. لم يُتحقّق من تنسيق Rongta.'],
   scaleLabelEnabled: ['خوێندنەوەی لیبڵی تەرازوو', 'Read scale labels', 'قراءة ملصقات الميزان'],
   scalePrefixes: ['پێشگرەکان (بە کۆما جیا بکەوە)', 'Prefixes (comma-separated)', 'البادئات (مفصولة بفواصل)'],

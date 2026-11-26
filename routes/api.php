@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::get('/', [ScaleLabelController::class, 'index']);
         Route::post('/learn', [ScaleLabelController::class, 'learn']);
         Route::post('/preview', [ScaleLabelController::class, 'preview']);
+        Route::post('/test-barcode', [ScaleLabelController::class, 'testBarcode']);
         Route::post('/checklist', [ScaleLabelController::class, 'checklist']);
     });
     Route::get('/backup', [BackupController::class, 'download']);

@@ -48,7 +48,7 @@ export function Sidebar() {
   return (
     <>
       <aside
-        className="hidden w-56 shrink-0 overflow-y-auto border-e border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:block print:hidden"
+        className="hidden w-56 shrink-0 overflow-y-auto border-e border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block print:hidden"
       >
       <nav aria-label={t('mainNavigation')} className="flex flex-col gap-1 overflow-y-auto p-3">
         {navigation}

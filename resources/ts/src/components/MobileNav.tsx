@@ -44,12 +44,12 @@ export function MobileNav() {
   return (
     <>
       {moreOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label={t('more')}>
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label={t('more')}>
           <button type="button" className="absolute inset-0 bg-slate-950/50" onClick={() => setMoreOpen(false)} aria-label={t('close')} />
-          <div className="absolute inset-x-0 bottom-0 max-h-[85dvh] overflow-y-auto rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl dark:bg-slate-900">
+          <div className="absolute inset-x-0 bottom-0 max-h-[min(85dvh,40rem)] overflow-y-auto overscroll-contain rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl dark:bg-slate-900">
             <div className="sticky top-0 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
               <p className="text-sm font-bold text-slate-900 dark:text-white">{t('more')}</p>
-              <button type="button" onClick={() => setMoreOpen(false)} className="grid size-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={t('close')}>
+              <button type="button" onClick={() => setMoreOpen(false)} className="grid size-11 place-items-center rounded-md text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={t('close')}>
                 <X className="size-5" />
               </button>
             </div>
@@ -114,7 +114,7 @@ export function MobileNav() {
 
       <nav
         aria-label={t('mainNavigation')}
-        className="z-40 flex shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 md:hidden print:hidden"
+        className="z-40 flex min-h-12 shrink-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-slate-800 dark:bg-slate-900 lg:hidden print:hidden"
       >
         {barTabs.map(({ id, icon: Icon }) => (
           <button key={id} type="button" onClick={() => go(id)} aria-current={activeTab === id ? 'page' : undefined} className={tabClass(activeTab === id)}>

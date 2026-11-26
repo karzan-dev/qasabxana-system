@@ -78,6 +78,7 @@ class ProductController extends Controller
             'price_per_kg' => 'nullable|numeric|min:0',
             'tare_weight' => 'nullable|numeric|min:0',
             'scale_product_code' => 'nullable|string|max:50',
+            'scale_barcode_enabled' => 'sometimes|boolean',
             'expiry_date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'description' => 'nullable|string',
@@ -144,6 +145,7 @@ class ProductController extends Controller
             'price_per_kg' => 'nullable|numeric|min:0',
             'tare_weight' => 'nullable|numeric|min:0',
             'scale_product_code' => 'nullable|string|max:50',
+            'scale_barcode_enabled' => 'sometimes|boolean',
             'expiry_date' => 'nullable|date',
             'image' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:5120',
             'remove_image' => 'nullable|boolean',
@@ -210,36 +212,26 @@ class ProductController extends Controller
     {
         $active = Product::with(['category', 'unit'])->where('status', 'ACTIVE');
         $product = (clone $active)->where('barcode', $barcode)->first();
-        if ($product) {
-            return response()->json(['success' => true, 'data' => $this->payload($product)]);
-        }
-
         $settings = $request->boolean('scale_label')
             ? Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))->pluck('key_value', 'key_name')->all() + ScaleLabel::DEFAULTS
             : ScaleLabel::DEFAULTS;
-        if ($settings['scale_label_enabled'] === '1') {
-            try {
-                $label = ScaleLabel::parse($barcode, ScaleLabel::layout($settings));
-                $product = ScaleProducts::resolve($label['plu']);
-                $weight = ScaleProducts::weight($label, $product);
-            } catch (InvalidArgumentException $error) {
-                // Keep direct short PLU lookups available alongside the label scanner.
-                if ($error->getMessage() === 'scaleUnsupported' && strlen($barcode) <= 9) {
-                    $product = (clone $active)->where('scale_product_code', $barcode)->first();
-                    if ($product) {
-                        return response()->json(['success' => true, 'data' => $this->payload($product)]);
-                    }
-                }
+        try {
+            $layout = $request->boolean('scale_label') && $settings['scale_label_enabled'] === '1'
+                && ctype_digit($barcode) && strlen($barcode) >= 10 ? ScaleLabel::layoutFor($barcode, $settings) : null;
+            if ($layout && (strlen($barcode) === 13 || ! $product)) {
+                [$product, $label] = ScaleProducts::readLabel($barcode, $layout);
 
+                return response()->json(['success' => true, 'data' => [
+                    ...$this->payload($product), 'scale_label' => $label,
+                ]]);
+            }
+        } catch (InvalidArgumentException $error) {
+            if (! $product || ! in_array($error->getMessage(), ['scaleUnsupported', 'scaleChecksum', 'scaleZeroValue', 'scalePluNotFound'], true)) {
                 return response()->json(['success' => false, 'message' => $error->getMessage()], 422);
             }
-
-            return response()->json(['success' => true, 'data' => [
-                ...$this->payload($product), 'scale_label' => ['weight_kg' => $weight],
-            ]]);
         }
 
-        $product = $active->where('scale_product_code', $barcode)->first();
+        $product ??= $active->where('scale_product_code', $barcode)->first();
         if (! $product) {
             return response()->json([
                 'success' => false,
@@ -296,6 +288,7 @@ class ProductController extends Controller
             'barcode' => $p->barcode,
             'sku' => $p->sku,
             'scale_product_code' => $p->scale_product_code,
+            'scale_barcode_enabled' => $p->scale_barcode_enabled,
             'name_ku' => $p->name_ku,
             'category_id' => $p->category_id,
             'unit_id' => $p->unit_id,

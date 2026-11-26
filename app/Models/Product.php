@@ -19,6 +19,7 @@ class Product extends Model
         'category_id',
         'unit_id',
         'is_weighted',
+        'scale_barcode_enabled',
         'purchase_price',
         'selling_price',
         'price_per_kg',
@@ -34,6 +35,7 @@ class Product extends Model
 
     protected $casts = [
         'is_weighted' => 'boolean',
+        'scale_barcode_enabled' => 'boolean',
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
         'price_per_kg' => 'decimal:2',

@@ -97,7 +97,7 @@ export function SettingsView() {
           </label>
         </div>
         <div className="border-y border-slate-200 px-4 py-3 dark:border-slate-800">
-          <div className="flex items-center gap-2"><Scale className="size-4 text-rose-700" /><h2 className="text-sm font-bold text-slate-900 dark:text-white">{t('scaleSettings')}</h2></div>
+          <div className="flex items-center gap-2"><Scale className="size-4 text-rose-700" /><h2 className="text-sm font-bold text-slate-900 dark:text-white">{t('scaleBarcodeSettings')}</h2></div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t('smartScale')} - Web Serial / manual</p>
         </div>
         <div className="grid gap-4 p-4 sm:grid-cols-2">

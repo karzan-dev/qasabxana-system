@@ -27,7 +27,7 @@ export function Navbar() {
         <button type="button" onClick={() => setIsFullScreen(!isFullScreen)} className={`${isFullScreen ? 'grid' : 'hidden sm:grid'} size-9 place-items-center rounded-md border border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-200`} title={t(isFullScreen ? 'exitFullScreen' : 'fullScreen')} aria-label={t(isFullScreen ? 'exitFullScreen' : 'fullScreen')}><FullScreenIcon className="size-4" /></button>
         <div className="hidden md:block"><LanguageSelector /></div>
         {showExpiryBell && (
-          <div className="relative">
+          <div className="sm:relative">
             <button
               type="button"
               onClick={() => setNotificationsOpen(open => !open)}
@@ -44,7 +44,7 @@ export function Navbar() {
               )}
             </button>
             {notificationsOpen && (
-              <div id="expiry-notifications" className="absolute end-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+              <div id="expiry-notifications" className="absolute inset-x-2 top-full z-50 mt-2 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 sm:start-auto sm:end-0 sm:w-80">
                 <div className="border-b border-slate-200 px-4 py-3 text-sm font-bold text-slate-900 dark:border-slate-700 dark:text-white">
                   {t('expiryNotifications')}
                 </div>

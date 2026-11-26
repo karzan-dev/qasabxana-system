@@ -1,5 +1,33 @@
 # تەرازووی چاپکەری لیبڵ لە Qasabxana
 
+## بارکۆدی قەپانی ئێستا
+
+1. لە **کاڵاکان**، کاڵاکە بە کێش و بە یەکەی KG تۆمار بکە. بارکۆدی ئاسایی، نرخی کڕین و فرۆشتنی هەر کیلۆ، بڕی کۆگا و کۆدی قەپان دابنێ. بۆ لیبڵی نموونە کۆدی قەپان `000077` ـە. هەر PLU بۆ یەک کاڵای چالاک بەکاربهێنە و خوێندنەوەی لیبڵ بۆ کاڵاکە چالاک بکە.
+2. لە **ڕێکخستنەکانی بارکۆدی قەپان** خوێندنەوەی لیبڵ چالاک بکە. بۆ فۆرماتی لیبڵی `1000077001305` پێشگر `1`، ٦ ژمارەی PLU، ٥ ژمارەی بەها و ٣ خانەی دەهەمی کێش دابنێ. دامەزراندنی نوێ ئەم فۆرماتە بە بنەڕەت بەکار دەهێنێت. ڕێکخستنی دامەزراندنی پێشوو دەپارێزرێت.
+3. لە **تاقیکردنەوەی بارکۆد**، کۆدەکە سکان بکە. بۆ هەر کیلۆیەک بە ٤٠٬٠٠٠ دینار، `1000077001305` دەبێت ١٣٠ گرام، ٠٫١٣٠ کیلۆ و ٥٬٢٠٠ دینار پیشان بدات.
+4. لە فرۆشتن سکەنەرەکە لە خانەی بارکۆد بەکاربهێنە. دوو پاکەتی بە هەمان کۆد دەتوانن بە پشتڕاستکردنەوە زیاد بکرێن. بڕی کۆگا لە کاتی تەواوکردنی فرۆشتن کەم دەبێتەوە.
+
+For another scale with a distinct prefix, use **Additional formats (JSON)**. Offsets are zero-based. For example, this adds the legacy prefix `20` alongside the primary prefix `1`:
+
+```json
+[
+  {
+    "prefix": "20",
+    "barcodeLength": 13,
+    "productCodeStart": 2,
+    "productCodeLength": 5,
+    "weightStart": 7,
+    "weightLength": 5,
+    "weightDivisor": 1000,
+    "pluLength": 6,
+    "validateChecksum": true,
+    "barcodeType": "weight"
+  }
+]
+```
+
+For price layouts use `"barcodeType": "price"` and `priceDivisor` in place of `weightDivisor`. The encoded amount is a price. POS derives the weight from that amount and the current per-kg price. EAN-13 length and checksum validation are required. To keep primary prefix `20` and add the new Rongta format, use the same configuration with prefix `1`, `productCodeStart: 1`, and `productCodeLength: 6`. Prefixes `1` and `10` overlap and cannot both be configured.
+
 ## یەکەم ڕۆژ لەگەڵ تەرازوو
 
 1. **لیبڵ ئامادە بکە.** لە مێنیوی Rongta، EAN‑13 هەڵبژێرە و لیبڵێک چاپ بکە. بارکۆدخوێنی کیبۆرد یان کامێرای POS بەکاری دەهێنێت. خوێندنەوە بە کابلی تەرازوو پێویست نییە بۆ لیبڵ.
@@ -13,9 +41,9 @@
 
 ## فۆرمات و سنوورەکان
 
-فۆرماتی بنەڕەت **گریمانەی تاقیکردنەوەیە**. Rongta پشتڕاستی نەکردووەتەوە. EAN‑13، پێشگری 20، PLU ـی ٥ ژمارە، بەهای ٥ ژمارە، ٣ خانەی دەهەمی کیلۆ و یەک ژمارەی پشکنین. بۆ PLU 1 و 0.525 kg کۆدە دروستەکە `2000001005255` ـە. هەموو خانەکانی فۆرمات دەستکاری دەکرێن. فۆرماتی نرخی ٥ ژمارە و سفر خانەی دەهەمی زۆرترین 99,999 دینار دەگرێت. فۆرماتی کێش باشترە. Code128، GS128 و کۆدی ١٨ ژمارە لەم ڕێڕەوەیە پشتگیری ناکرێن.
+فۆرماتی نموونەی کۆن **گریمانەی تاقیکردنەوەیە**. Rongta پشتڕاستی نەکردووەتەوە. EAN‑13، پێشگری 20، PLU ـی ٥ ژمارە، بەهای ٥ ژمارە، ٣ خانەی دەهەمی کیلۆ و یەک ژمارەی پشکنین. بۆ PLU 1 و 0.525 kg کۆدە دروستەکە `2000001005255` ـە. هەموو خانەکانی فۆرمات دەستکاری دەکرێن. فۆرماتی نرخی ٥ ژمارە و سفر خانەی دەهەمی زۆرترین 99,999 دینار دەگرێت. فۆرماتی کێش باشترە. Code128، GS128 و کۆدی ١٨ ژمارە لەم ڕێڕەوەیە پشتگیری ناکرێن.
 
-RS232 و Ethernet لە زانیارییەکانی ئامێردا هەن و Wi‑Fi هەڵبژاردەییە. USB ـی خودی تەرازوو، شێوەی لیبڵ و ناردنی فریمەکانی سریال پشتڕاست نەکراون. هیچ بارکردنی PLU بە TCP لە سیستەم نییە. خوێندنەوەی لیبڵ بە بنەڕەت ناچالاکە و **NOT VERIFIED ON HARDWARE** تا تەواوبوونی چێکلیست دەردەکەوێت.
+RS232 و Ethernet لە زانیارییەکانی ئامێردا هەن و Wi‑Fi هەڵبژاردەییە. USB ـی خودی تەرازوو، شێوەی لیبڵ و ناردنی فریمەکانی سریال پشتڕاست نەکراون. هیچ بارکردنی PLU بە TCP لە سیستەم نییە. **NOT VERIFIED ON HARDWARE** تا تەواوبوونی چێکلیست دەردەکەوێت.
 
 ## English
 
@@ -27,7 +55,6 @@ RS232 و Ethernet لە زانیارییەکانی ئامێردا هەن و Wi‑
 6. If labels or the cable fail, select the product and enter kg manually. A locally retained cart can keep the weight during a network interruption. Submitting the sale requires the server.
 7. For optional live weight, confirm whether the scale actually streams serial data. Use RS232 wiring or a compatible computer-side USB-to-RS232 adapter. Web Serial requires Chrome/Edge over HTTPS or localhost. Match baud rate, data bits, parity and stop bits to the device. The defaults are 9600, 8, none and 1. Unitless frames default to kg and can be configured as grams. Diagnostics display raw frames. Return the scale to zero before the next reading. Select the cart line when several weighted products are present.
 
-The default EAN-13 layout, prefix 20 + five PLU digits + five value digits + one check digit, is a simulated assumption. Three decimals mean kilograms in weight mode. PLU 1 at 0.525 kg encodes as `2000001005255`. With five price digits and zero decimals the ceiling is 99,999 IQD. Prefer weight labels. Select EAN-13 on the scale if it currently prints Code128, GS128 or an 18-digit label.
 
 The documented hardware interfaces include RS232, RJ45 Ethernet and optional Wi-Fi. The label layout and live serial framing remain unverified. The application sends no TCP commands to the scale. The label and serial simulators make no sale, cart or stock changes. Hardware verification stays pending until an administrator completes the checklist.
 

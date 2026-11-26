@@ -35,6 +35,9 @@ final class ScaleProducts
         if (! $product) {
             throw new InvalidArgumentException('scalePluNotFound');
         }
+        if (! $product->scale_barcode_enabled) {
+            throw new InvalidArgumentException('scaleProductDisabled');
+        }
         if (! self::isWeighted($product)) {
             throw new InvalidArgumentException('scaleNotWeighted');
         }
@@ -45,6 +48,17 @@ final class ScaleProducts
     public static function isWeighted(Product $product): bool
     {
         return $product->is_weighted || in_array(strtolower((string) $product->unit?->short_code), ['kg', 'g'], true);
+    }
+
+    public static function readLabel(string $code, array $layout): array
+    {
+        $label = ScaleLabel::parse($code, $layout);
+        $product = self::resolve($label['plu']);
+        if (Product::where('status', 'ACTIVE')->where('barcode', $code)->whereKeyNot($product->id)->exists()) {
+            throw new InvalidArgumentException('scaleBarcodeConflict');
+        }
+
+        return [$product, [...$label, 'weight_kg' => self::weight($label, $product)]];
     }
 
     public static function weight(array $label, Product $product): float

@@ -45,7 +45,7 @@ const MainLayout: React.FC = () => {
     return (
       <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
         <Navbar />
-        <main className="min-h-0 flex-1 overflow-y-auto p-2 sm:p-4">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-2 sm:p-4">
           <Suspense fallback={<ViewLoading />}>
             {visibleTab === 'dashboard' && <DashboardView />}
             {(visibleTab === 'pos' || visibleTab === 'cashier') && <PosView />}
@@ -82,7 +82,7 @@ const MainLayout: React.FC = () => {
         <Sidebar />
 
         {/* Main Content Area */}
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto p-3 sm:p-5 md:p-6">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-5 lg:p-6">
           <div className="max-w-7xl mx-auto w-full">
             <Suspense fallback={<ViewLoading />}>
               {visibleTab === 'dashboard' && <DashboardView />}

@@ -9,6 +9,7 @@ use App\Services\ScaleLabel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use InvalidArgumentException;
 
 class SettingController extends Controller
 {
@@ -48,6 +49,7 @@ class SettingController extends Controller
             'scale_label_value_length' => 'sometimes|integer|in:4,5,6',
             'scale_label_value_type' => 'sometimes|in:weight,price',
             'scale_label_value_decimals' => 'sometimes|integer|between:0,3',
+            'scale_label_formats' => 'sometimes|required|string|json|max:12000',
             'scale_unitless_unit' => 'sometimes|in:kg,g',
             'scale_data_bits' => 'sometimes|integer|in:7,8',
             'scale_parity' => 'sometimes|in:none,even,odd',
@@ -78,10 +80,12 @@ class SettingController extends Controller
             $previous = Setting::whereIn('key_name', array_keys(ScaleLabel::DEFAULTS))->lockForUpdate()->pluck('key_value', 'key_name')->all() + ScaleLabel::DEFAULTS;
             $scale = array_intersect_key($data, ScaleLabel::DEFAULTS) + $previous;
             $layout = ScaleLabel::layout($scale);
-            if (! ScaleLabel::validLayout($layout)) {
-                throw ValidationException::withMessages(['scale_label_prefixes' => ['scaleInvalidLayout']]);
+            try {
+                $layouts = ScaleLabel::layouts($scale);
+            } catch (InvalidArgumentException $error) {
+                throw ValidationException::withMessages([self::layoutErrorField($layout) => [$error->getMessage()]]);
             }
-            if ($layout !== ScaleLabel::layout($previous)) {
+            if ($layouts !== ScaleLabel::layouts($previous)) {
                 ScaleLabelController::clearChecklist();
             }
             foreach (array_intersect_key($data, array_flip($allowedSettings)) as $key => $value) {
@@ -104,5 +108,10 @@ class SettingController extends Controller
         unset($updated['tax_percentage']);
 
         return response()->json(['success' => true, 'message' => 'Settings saved successfully', 'data' => $updated]);
+    }
+
+    private static function layoutErrorField(array $layout): string
+    {
+        return ScaleLabel::validLayout($layout) ? 'scale_label_formats' : 'scale_label_prefixes';
     }
 }

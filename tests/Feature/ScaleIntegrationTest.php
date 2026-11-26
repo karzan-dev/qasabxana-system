@@ -134,6 +134,8 @@ class ScaleIntegrationTest extends TestCase
             ->assertJsonMissingPath('data.scale_label');
         $this->scan($code)->assertUnprocessable()->assertJsonPath('message', 'scalePluNotFound');
         $product = $this->product('000077', ['barcode' => $code, 'price_per_kg' => 40000, 'quantity' => 50]);
+        $this->getJson('/api/settings/scale')->assertOk()
+            ->assertJsonFragment(['scale_product_code' => '000077', 'price_per_kg' => 40000, 'scale_barcode_enabled' => true]);
 
         $this->scan('1000077001306')->assertUnprocessable()->assertJsonPath('message', 'scaleChecksum');
         $this->scan('100007700130')->assertUnprocessable()->assertJsonPath('message', 'scaleUnsupported');

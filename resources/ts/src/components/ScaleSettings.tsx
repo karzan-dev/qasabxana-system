@@ -47,8 +47,14 @@ type Sample = { code: string; plu: string; weight: string; price: string };
 const emptySample: Sample = { code: '', plu: '', weight: '', price: '' };
 type Layout = { prefixes: string[]; plu_length: number; value_length: number; type: 'weight' | 'price'; decimals: number };
 type Learning = { layouts: Layout[]; can_save: boolean };
-type ScaleProduct = { id: number; name_ku: string; scale_product_code: string };
-type Catalog = { products: ScaleProduct[]; duplicates: Array<{ plu: string; products: ScaleProduct[] }> };
+type ScaleProduct = {
+  id: number;
+  name_ku: string;
+  scale_product_code: string;
+  scale_barcode_enabled: boolean;
+  price_per_kg: number;
+};
+type Catalog = { products: ScaleProduct[]; duplicates: Array<{ plu: string; products: Pick<ScaleProduct, 'id' | 'name_ku' | 'scale_product_code'>[] }> };
 type Preview = { code: string; plu: string; weight_kg: number; type: 'weight' | 'price'; value: number; name: string };
 type BarcodeTest = Preview & {
   prefix: string;
@@ -90,7 +96,9 @@ const serialSamples = [
 
 export function ScaleSettingsTools({ admin }: { admin: boolean }) {
   const { settings, updateSettings, showToast, t, formatCurrency } = useApp();
-  const [tab, setTab] = useState<'learn' | 'simulation' | 'checklist' | 'test'>('test');
+  const [tab, setTab] = useState<'learn' | 'simulation' | 'checklist' | 'test' | 'plu'>('test');
+  const [pluSearch, setPluSearch] = useState('');
+  const [catalogLoading, setCatalogLoading] = useState(true);
   const [testCode, setTestCode] = useState('1000077001305');
   const [tested, setTested] = useState<BarcodeTest | null>(null);
   const [catalog, setCatalog] = useState<Catalog>({ products: [], duplicates: [] });
@@ -111,7 +119,8 @@ export function ScaleSettingsTools({ admin }: { admin: boolean }) {
     let current = true;
     apiRequest<Catalog>('/api/settings/scale').then(result => {
       if (current) setCatalog(result.data);
-    }).catch(error => { if (current) setError(error.message); });
+    }).catch(error => { if (current) setError(error.message); })
+      .finally(() => { if (current) setCatalogLoading(false); });
     return () => { current = false; };
   }, []);
 
@@ -175,14 +184,40 @@ export function ScaleSettingsTools({ admin }: { admin: boolean }) {
     showToast(t('saved'), 'success');
   });
 
+  const pluQuery = pluSearch.trim().toLowerCase();
+  const visiblePluProducts = catalog.products.filter(item => item.name_ku.toLowerCase().includes(pluQuery)
+    || item.scale_product_code.toLowerCase().includes(pluQuery));
+
   return (
     <section className={panelClass} aria-label={t('scaleSettings')}>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={buttonClass} aria-pressed={tab === 'test'} onClick={() => setTab('test')}>{t('scaleTestBarcode')}</button>
+        {admin && <button type="button" className={buttonClass} aria-pressed={tab === 'plu'} onClick={() => setTab('plu')}>{t('scalePluTable')}</button>}
         <button type="button" className={buttonClass} aria-pressed={tab === 'learn'} onClick={() => setTab('learn')}>{t('scaleLearn')}</button>
         {admin && <button type="button" className={buttonClass} aria-pressed={tab === 'simulation'} onClick={() => setTab('simulation')}>{t('scaleSimulation')}</button>}
         {admin && <button type="button" className={buttonClass} aria-pressed={tab === 'checklist'} onClick={() => setTab('checklist')}>{t('scaleChecklist')}</button>}
       </div>
+      {admin && tab === 'plu' && <section className="space-y-3" aria-label={t('scalePluTable')}>
+        <label className="block text-xs font-semibold sm:max-w-sm">{t('search')}
+          <input type="search" className={inputClass} value={pluSearch} onChange={event => setPluSearch(event.target.value)} />
+        </label>
+        <div className="overflow-x-auto rounded-md border border-slate-200 dark:border-slate-800">
+          <table className="w-full text-start text-sm">
+            <thead className="bg-slate-50 dark:bg-slate-950">
+              <tr>{['product', 'scaleProductCode', 'pricePerKg', 'scaleLabelEnabled'].map(key => <th key={key} scope="col" className="px-3 py-2 text-start">{t(key)}</th>)}</tr>
+            </thead>
+            <tbody>
+              {visiblePluProducts.map(item => <tr key={item.id} className="border-t border-slate-200 dark:border-slate-800">
+                <td className="px-3 py-2 font-semibold">{item.name_ku}</td>
+                <td className="px-3 py-2"><bdi className="font-mono">{item.scale_product_code}</bdi></td>
+                <td className="px-3 py-2">{formatCurrency(item.price_per_kg)}</td>
+                <td className="px-3 py-2">{t(item.scale_barcode_enabled ? 'yes' : 'no')}</td>
+              </tr>)}
+              {visiblePluProducts.length === 0 && <tr><td colSpan={4} className="p-3 text-center">{t(catalogLoading ? 'loading' : 'noData')}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>}
       {tab === 'test' && <form className="space-y-2" onSubmit={event => { event.preventDefault(); if (!busy) void testBarcode(); }}>
         <p className="text-sm">{t('scaleTestOnly')}</p>
         <label className="text-xs">{t('scaleSample_code')}

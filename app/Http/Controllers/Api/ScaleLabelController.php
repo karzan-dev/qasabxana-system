@@ -25,7 +25,11 @@ class ScaleLabelController extends Controller
                 ->map(fn ($products, $plu) => ['plu' => (string) $plu, 'products' => $products->values()])->values(),
             'products' => $request->user()->isAdmin() ? Product::with('unit')->where('status', 'ACTIVE')->whereNotNull('scale_product_code')->get()
                 ->filter(fn (Product $product) => ScaleProducts::isWeighted($product) && ScaleLabel::normalizePlu($product->scale_product_code) !== null)
-                ->map(fn (Product $product) => $product->only(['id', 'name_ku', 'scale_product_code']))->values() : [],
+                ->sortBy('name_ku')
+                ->map(fn (Product $product) => [
+                    ...$product->only(['id', 'name_ku', 'scale_product_code', 'scale_barcode_enabled']),
+                    'price_per_kg' => $this->pricePerKg($product),
+                ])->values() : [],
         ]]);
     }
 
@@ -138,14 +142,19 @@ class ScaleLabelController extends Controller
         } catch (InvalidArgumentException $error) {
             throw ValidationException::withMessages(['code' => [$error->getMessage()]]);
         }
-        $price = (float) $product->price_per_kg ?: (float) $product->selling_price
-            * (strtolower((string) $product->unit?->short_code) === 'g' ? 1000 : 1);
+        $price = $this->pricePerKg($product);
 
         return response()->json(['success' => true, 'data' => [
             ...$label, 'code' => $code, 'name' => $product->name_ku, 'checksum_valid' => true,
             'weight_grams' => (int) round($label['weight_kg'] * 1000), 'price_per_kg' => $price,
             'total' => round($label['weight_kg'] * $price, 2),
         ]]);
+    }
+
+    private function pricePerKg(Product $product): float
+    {
+        return (float) $product->price_per_kg ?: (float) $product->selling_price
+            * (strtolower((string) $product->unit?->short_code) === 'g' ? 1000 : 1);
     }
 
     public function checklist(Request $request): JsonResponse

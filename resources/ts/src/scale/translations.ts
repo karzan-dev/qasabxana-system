@@ -1,5 +1,6 @@
 const copy: Record<string, readonly [string, string, string]> = {
   scaleBarcodeSettings: ['ڕێکخستنەکانی بارکۆدی قەپان', 'Scale Barcode Settings', 'إعدادات باركود الميزان'],
+  scalePluTable: ['خشتەی PLU ـی قەپان', 'Scale PLU table', 'جدول رموز PLU للميزان'],
   scaleAdditionalFormats: ['فۆرماتە زیادەکان (JSON)', 'Additional formats (JSON)', 'تنسيقات إضافية (JSON)'],
   scaleTestBarcode: ['تاقیکردنەوەی بارکۆد', 'Test Barcode', 'اختبار الباركود'],
   scaleChecksumValid: ['ژمارەی پشکنین دروستە', 'Checksum valid', 'رقم التحقق صحيح'],
